@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>研发支持智能体系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            margin-left: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(17, 153, 142, 0.4);
+        }
+
+        .result-section {
+            margin-top: 30px;
+        }
+
+        .result-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .json-viewer {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .json-key {
+            color: #9cdcfe;
+        }
+
+        .json-string {
+            color: #ce9178;
+        }
+
+        .json-number {
+            color: #b5cea8;
+        }
+
+        .json-boolean {
+            color: #569cd6;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .parameter-form {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-row label {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .form-row input {
+            padding: 10px;
+            font-size: 14px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .example-queries {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .example-chip {
+            padding: 8px 16px;
+            background: #f0f0f0;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .example-chip:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 研发支持智能体系统</h1>
+
+        <div class="card">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('env')">环境管理</div>
+                <div class="tab" onclick="switchTab('test')">测试执行</div>
+            </div>
+
+            <div class="input-group">
+                <label for="userQuery">请输入您的需求：</label>
+                <textarea id="userQuery" placeholder="例如：我需要申请一个开发环境，用于测试新功能..."></textarea>
+                
+                <div class="example-queries" id="exampleQueries">
+                    <span class="example-chip" onclick="setQuery('申请一个开发环境，CPU 4核，内存8G')">申请开发环境</span>
+                    <span class="example-chip" onclick="setQuery('回收测试环境 test-env-001')">回收测试环境</span>
+                    <span class="example-chip" onclick="setQuery('对 http://api.example.com 进行接口测试')">执行接口测试</span>
+                    <span class="example-chip" onclick="setQuery('分析最近的测试结果')">分析测试结果</span>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label for="userId">用户ID：</label>
+                <input type="text" id="userId" placeholder="请输入用户ID" value="user_001">
+            </div>
+
+            <button class="btn btn-primary" onclick="parseIntent()">解析意图</button>
+
+            <div class="loading" id="loading1">
+                <div class="spinner"></div>
+                <p>正在解析意图...</p>
+            </div>
+
+            <div class="result-section hidden" id="intentResult">
+                <h3 class="result-title">📋 意图解析结果</h3>
+                <div id="intentJson" class="json-viewer"></div>
+
+                <div class="parameter-form" id="parameterForm">
+                    <h4>参数确认</h4>
+                    <div id="parameterFields"></div>
+                    <div style="margin-top: 20px;">
+                        <button class="btn btn-success" onclick="executeTask()">确认执行</button>
+                        <button class="btn btn-secondary" onclick="resetForm()">重置</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="loading" id="loading2">
+                <div class="spinner"></div>
+                <p>正在执行任务...</p>
+            </div>
+
+            <div class="result-section hidden" id="executionResult">
+                <h3 class="result-title">✅ 执行结果</h3>
+                <div id="executionJson" class="json-viewer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentRequestId = null;
+        let currentQuery = null;
+        let currentIntent = null;
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            const examples = document.getElementById('exampleQueries');
+            if (tab === 'env') {
+                examples.innerHTML = `
+                    <span class="example-chip" onclick="setQuery('申请一个开发环境，CPU 4核，内存8G')">申请开发环境</span>
+                    <span class="example-chip" onclick="setQuery('申请测试环境，24小时')">申请测试环境</span>
+                    <span class="example-chip" onclick="setQuery('回收开发环境 dev-001')">回收开发环境</span>
+                    <span class="example-chip" onclick="setQuery('释放测试环境资源')">释放测试资源</span>
+                `;
+            } else {
+                examples.innerHTML = `
+                    <span class="example-chip" onclick="setQuery('对 http://api.example.com 进行接口测试')">执行接口测试</span>
+                    <span class="example-chip" onclick="setQuery('执行Web界面自动化测试')">执行UI测试</span>
+                    <span class="example-chip" onclick="setQuery('分析测试ID为test-001的结果')">分析测试结果</span>
+                    <span class="example-chip" onclick="setQuery('生成测试报告')">生成测试报告</span>
+                `;
+            }
+        }
+
+        function setQuery(query) {
+            document.getElementById('userQuery').value = query;
+        }
+
+        function syntaxHighlight(json) {
+            if (typeof json !== 'string') {
+                json = JSON.stringify(json, null, 2);
+            }
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                let cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                    } else {
+                        cls = 'json-string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'json-null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
+        async function parseIntent() {
+            const query = document.getElementById('userQuery').value.trim();
+            const userId = document.getElementById('userId').value.trim();
+
+            if (!query) {
+                alert('请输入您的需求');
+                return;
+            }
+
+            currentQuery = query;
+
+            document.getElementById('loading1').classList.add('active');
+            document.getElementById('intentResult').classList.add('hidden');
+            document.getElementById('executionResult').classList.add('hidden');
+
+            try {
+                const response = await fetch('/api/agent/intent', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        userId: userId
+                    })
+                });
+
+                const result = await response.json();
+                console.log('Intent result:', result);
+
+                currentRequestId = result.requestId;
+                currentIntent = result.intentResult;
+
+                document.getElementById('intentJson').innerHTML = syntaxHighlight(result);
+                renderParameterForm(result.intentResult);
+                document.getElementById('intentResult').classList.remove('hidden');
+            } catch (error) {
+                alert('请求失败：' + error.message);
+            } finally {
+                document.getElementById('loading1').classList.remove('active');
+            }
+        }
+
+        function renderParameterForm(intentResult) {
+            const container = document.getElementById('parameterFields');
+            container.innerHTML = '';
+
+            if (!intentResult || !intentResult.parameters) {
+                container.innerHTML = '<p>无参数需要确认</p>';
+                return;
+            }
+
+            const params = intentResult.parameters;
+            const descriptions = intentResult.parameterDescriptions || {};
+
+            for (const [key, value] of Object.entries(params)) {
+                const row = document.createElement('div');
+                row.className = 'form-row';
+
+                const label = document.createElement('label');
+                label.textContent = descriptions[key] || key;
+
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = `param_${key}`;
+                input.value = value !== null && value !== undefined ? value : '';
+
+                row.appendChild(label);
+                row.appendChild(input);
+                container.appendChild(row);
+            }
+        }
+
+        async function executeTask() {
+            if (!currentRequestId || !currentIntent) {
+                alert('请先解析意图');
+                return;
+            }
+
+            // 收集确认后的参数
+            const confirmedParams = {};
+            const inputs = document.querySelectorAll('#parameterFields input');
+            inputs.forEach(input => {
+                const key = input.id.replace('param_', '');
+                confirmedParams[key] = input.value;
+            });
+
+            document.getElementById('loading2').classList.add('active');
+
+            try {
+                const response = await fetch('/api/agent/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        requestId: currentRequestId,
+                        query: currentQuery,
+                        userId: document.getElementById('userId').value.trim(),
+                        parameters: confirmedParams
+                    })
+                });
+
+                const result = await response.json();
+                console.log('Execution result:', result);
+
+                document.getElementById('executionJson').innerHTML = syntaxHighlight(result);
+                document.getElementById('executionResult').classList.remove('hidden');
+            } catch (error) {
+                alert('执行失败：' + error.message);
+            } finally {
+                document.getElementById('loading2').classList.remove('active');
+            }
+        }
+
+        function resetForm() {
+            document.getElementById('userQuery').value = '';
+            document.getElementById('intentResult').classList.add('hidden');
+            document.getElementById('executionResult').classList.add('hidden');
+            currentRequestId = null;
+            currentQuery = null;
+            currentIntent = null;
+        }
+    </script>
+</body>
+</html>

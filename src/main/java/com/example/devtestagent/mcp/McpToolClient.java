@@ -75,6 +75,29 @@ public class McpToolClient {
         return callTool("recycleResource", params);
     }
 
+    // ==================== 传统测试工具 ====================
+
+    /**
+     * 自动化接口测试
+     */
+    public Mono<JsonNode> autoInterfaceTest(Map<String, Object> params) {
+        return callTool("autoInterfaceTest", params);
+    }
+
+    /**
+     * 自动化界面测试
+     */
+    public Mono<JsonNode> autoUITest(Map<String, Object> params) {
+        return callTool("autoUITest", params);
+    }
+
+    /**
+     * 测试结果分析
+     */
+    public Mono<JsonNode> resultAnalysis(Map<String, Object> params) {
+        return callTool("resultAnalysis", params);
+    }
+
     // ==================== 测试批次管理工具 ====================
 
     /**

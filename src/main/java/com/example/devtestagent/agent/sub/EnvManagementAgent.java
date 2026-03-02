@@ -151,8 +151,8 @@ public class EnvManagementAgent implements SubAgent {
             String jsonStr = extractJson(response);
             JsonNode jsonNode = objectMapper.readTree(jsonStr);
 
-            String action = jsonNode.has("action") ? jsonNode.get("action").asText() : "unknown";
-            String target = jsonNode.has("target") ? jsonNode.get("target").asText() : "unknown";
+            String action = jsonNode.has("action") ? jsonNode.get("action").asText().trim() : "unknown";
+            String target = jsonNode.has("target") ? jsonNode.get("target").asText().trim() : "unknown";
             
             Map<String, Object> parameters = new HashMap<>();
             if (jsonNode.has("parameters")) {

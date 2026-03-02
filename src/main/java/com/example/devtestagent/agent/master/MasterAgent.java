@@ -302,7 +302,9 @@ public class MasterAgent {
     private Mono<AgentResponse.ExecutionResult> routeToSubAgentForExecution(String action, AgentRequest request) {
         if (action.startsWith("applyResource") || action.startsWith("recycleResource")) {
             return envManagementAgent.execute(request);
-        } else if (action.startsWith("auto") || action.startsWith("resultAnalysis")) {
+        } else if (action.startsWith("auto") || action.startsWith("resultAnalysis") ||
+                   action.startsWith("createBatch") || action.startsWith("addCasesToBatch") ||
+                   action.startsWith("executeBatch") || action.startsWith("analyzeBatchResult")) {
             return testAgent.execute(request);
         } else {
             return Mono.error(new IllegalArgumentException("Unknown action: " + action));

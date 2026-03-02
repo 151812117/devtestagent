@@ -27,7 +27,7 @@
             <version>${solon.version}</version>
         </dependency>
 
-        <!-- Solon Boot JLHttp (内置HTTP服务器) -->
+        <!-- Solon Boot JLHttp -->
         <dependency>
             <groupId>org.noear</groupId>
             <artifactId>solon.boot.jlhttp</artifactId>

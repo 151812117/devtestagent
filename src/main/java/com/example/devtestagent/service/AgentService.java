@@ -58,8 +58,13 @@ public class AgentService {
             return Mono.error(new IllegalStateException("Intent parse result not found for request: " + requestId));
         }
 
-        // 使用用户确认后的参数
-        originalIntent.setParameters(confirmedParameters);
+        // 使用用户确认后的参数，并加入 action（确保 action 没有空格）
+        java.util.Map<String, Object> paramsWithAction = new java.util.HashMap<>(confirmedParameters);
+        String action = originalIntent.getAction() != null ? originalIntent.getAction().trim() : "";
+        paramsWithAction.put("action", action);
+        originalIntent.setParameters(paramsWithAction);
+        
+        log.info("[AgentService] Executing with action: '{}'", action);
 
         // 创建确认参数的适配器
         MasterAgent.IntentParseIntent confirmedIntent = new MasterAgent.IntentParseIntent() {
@@ -70,7 +75,7 @@ public class AgentService {
 
             @Override
             public Map<String, Object> getParameters() {
-                return confirmedParameters;
+                return paramsWithAction;
             }
         };
 

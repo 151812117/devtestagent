@@ -79,6 +79,7 @@ public class TestAgent implements SubAgent {
         Mono<JsonNode> resultMono;
 
         switch (action) {
+            // 传统测试工具
             case "autoInterfaceTest":
                 resultMono = mcpToolClient.autoInterfaceTest(params);
                 break;
@@ -87,6 +88,19 @@ public class TestAgent implements SubAgent {
                 break;
             case "resultAnalysis":
                 resultMono = mcpToolClient.resultAnalysis(params);
+                break;
+            // 测试批次管理工具
+            case "createBatch":
+                resultMono = mcpToolClient.createBatch(params);
+                break;
+            case "addCasesToBatch":
+                resultMono = mcpToolClient.addCasesToBatch(params);
+                break;
+            case "executeBatch":
+                resultMono = mcpToolClient.executeBatch(params);
+                break;
+            case "analyzeBatchResult":
+                resultMono = mcpToolClient.analyzeBatchResult(params);
                 break;
             default:
                 return Mono.error(new IllegalArgumentException("Unknown action: " + action));
@@ -99,7 +113,7 @@ public class TestAgent implements SubAgent {
                 request.getUserId(),
                 request.getSessionId(),
                 finalAction,
-                params.getOrDefault("testScenario", "unknown").toString(),
+                params.getOrDefault("testScenario", params.getOrDefault("systemName", "unknown")).toString(),
                 result.toString()
             );
 
@@ -130,13 +144,22 @@ public class TestAgent implements SubAgent {
             userPrompt.append("历史记忆：\n").append(request.getMemory()).append("\n\n");
         }
 
-        userPrompt.append("请根据用户输入判断：\n");
-        userPrompt.append("1. 测试操作类型（autoInterfaceTest/autoUITest/resultAnalysis）\n");
-        userPrompt.append("2. 测试目标类型（api/graphql/grpc/websocket/web/mobile/desktop）\n");
-        userPrompt.append("3. 目标URL或应用路径\n");
-        userPrompt.append("4. 测试场景和用例\n");
-        userPrompt.append("5. 其他配置参数\n\n");
-        userPrompt.append("请以 JSON 格式返回解析结果。");
+        userPrompt.append("请根据用户输入判断操作类型：\n");
+        userPrompt.append("可用的操作类型：\n");
+        userPrompt.append("- createBatch: 创建测试批次（需要：systemName, systemCode, batchLabel）\n");
+        userPrompt.append("- addCasesToBatch: 添加案例到批次（需要：caseIds, batchId）\n");
+        userPrompt.append("- executeBatch: 执行批次（需要：batchId, systemCode）\n");
+        userPrompt.append("- analyzeBatchResult: 批次结果分析（需要：executionId）\n");
+        userPrompt.append("- autoInterfaceTest: 接口测试\n");
+        userPrompt.append("- autoUITest: 界面测试\n");
+        userPrompt.append("- resultAnalysis: 测试结果分析（只需要testId）\n\n");
+        
+        userPrompt.append("请以 JSON 格式返回解析结果，包含以下字段：\n");
+        userPrompt.append("- action: 操作类型\n");
+        userPrompt.append("- target: 操作目标\n");
+        userPrompt.append("- parameters: 提取的参数\n");
+        userPrompt.append("- think: 你的思考过程，包括对用户意图的理解、提取了哪些参数、哪些参数缺失需要用户补充\n");
+        userPrompt.append("- missingParameters: 需要补充的参数名和说明\n");
 
         return userPrompt.toString();
     }
@@ -158,11 +181,33 @@ public class TestAgent implements SubAgent {
                 parameters = objectMapper.convertValue(jsonNode.get("parameters"), 
                     new TypeReference<Map<String, Object>>() {});
             }
+            
+            // 提取思考过程
+            String think = jsonNode.has("think") ? jsonNode.get("think").asText() : "";
+            
+            // 提取需要补充的参数
+            Map<String, String> missingParameters = new HashMap<>();
+            if (jsonNode.has("missingParameters")) {
+                missingParameters = objectMapper.convertValue(jsonNode.get("missingParameters"), 
+                    new TypeReference<Map<String, String>>() {});
+            }
 
             // 设置默认值
             setDefaultValues(action, parameters);
 
             Map<String, String> paramDescriptions = buildParameterDescriptions(action);
+            
+            // 根据缺失参数数量判断确认消息
+            String confirmationMessage;
+            if (missingParameters.isEmpty()) {
+                confirmationMessage = "请确认以上测试参数是否正确";
+            } else if (missingParameters.size() == 1) {
+                String paramName = missingParameters.keySet().iterator().next();
+                String paramDesc = missingParameters.get(paramName);
+                confirmationMessage = "请补充" + paramDesc + "信息";
+            } else {
+                confirmationMessage = "请补充以下参数信息";
+            }
 
             return IntentParseResult.builder()
                 .action(action)
@@ -172,7 +217,9 @@ public class TestAgent implements SubAgent {
                 .confidence(0.9)
                 .originalQuery(originalQuery)
                 .needConfirmation(true)
-                .confirmationMessage("请确认以上测试参数是否正确")
+                .confirmationMessage(confirmationMessage)
+                .think(think)
+                .missingParameters(missingParameters)
                 .build();
 
         } catch (Exception e) {
@@ -188,6 +235,7 @@ public class TestAgent implements SubAgent {
         Map<String, String> descriptions = new HashMap<>();
         
         switch (action) {
+            // 传统测试工具
             case "autoInterfaceTest":
                 descriptions.put("testType", "测试类型（api/graphql/grpc/websocket）");
                 descriptions.put("targetUrl", "目标URL");
@@ -205,9 +253,24 @@ public class TestAgent implements SubAgent {
                 descriptions.put("screenshotOnFailure", "失败时是否截图");
                 break;
             case "resultAnalysis":
-                descriptions.put("testId", "测试ID");
-                descriptions.put("resultType", "结果类型（summary/detailed/performance）");
-                descriptions.put("generateReport", "是否生成报告");
+                descriptions.put("testId", "测试ID（必填）");
+                break;
+            // 测试批次管理工具
+            case "createBatch":
+                descriptions.put("systemName", "被测系统名");
+                descriptions.put("systemCode", "被测系统编号");
+                descriptions.put("batchLabel", "批次标识");
+                break;
+            case "addCasesToBatch":
+                descriptions.put("caseIds", "案例编号列表");
+                descriptions.put("batchId", "批次编号");
+                break;
+            case "executeBatch":
+                descriptions.put("batchId", "批次编号");
+                descriptions.put("systemCode", "系统编号");
+                break;
+            case "analyzeBatchResult":
+                descriptions.put("executionId", "执行编号");
                 break;
         }
         
@@ -244,8 +307,13 @@ public class TestAgent implements SubAgent {
                 parameters.putIfAbsent("screenshotOnFailure", true);
                 break;
             case "resultAnalysis":
-                parameters.putIfAbsent("resultType", "summary");
-                parameters.putIfAbsent("generateReport", true);
+                // resultAnalysis 只需要 testId 参数
+                break;
+            // 测试批次工具不需要默认值
+            case "createBatch":
+            case "addCasesToBatch":
+            case "executeBatch":
+            case "analyzeBatchResult":
                 break;
         }
     }
@@ -259,8 +327,18 @@ public class TestAgent implements SubAgent {
         
         String lowerQuery = originalQuery.toLowerCase();
         
-        // 判断测试类型
-        if (lowerQuery.contains("界面") || lowerQuery.contains("ui") || 
+        // 判断测试类型 - 优先检查批次相关操作
+        if (lowerQuery.contains("创建批次") || lowerQuery.contains("新建批次") || 
+            lowerQuery.contains("创建测试")) {
+            action = "createBatch";
+        } else if (lowerQuery.contains("添加案例") || lowerQuery.contains("加入案例")) {
+            action = "addCasesToBatch";
+        } else if (lowerQuery.contains("执行批次") || lowerQuery.contains("运行批次")) {
+            action = "executeBatch";
+        } else if (lowerQuery.contains("分析结果") || lowerQuery.contains("批次分析") ||
+                   lowerQuery.contains("执行编号")) {
+            action = "analyzeBatchResult";
+        } else if (lowerQuery.contains("界面") || lowerQuery.contains("ui") || 
             lowerQuery.contains("页面") || lowerQuery.contains("浏览器")) {
             action = "autoUITest";
             parameters.put("testType", "web");
@@ -286,6 +364,8 @@ public class TestAgent implements SubAgent {
             .originalQuery(originalQuery)
             .needConfirmation(true)
             .confirmationMessage("已根据您的输入提取测试参数，请确认或修改")
+            .think("从用户输入中提取了基本参数，请确认或补充缺失信息")
+            .missingParameters(new HashMap<>())
             .build();
     }
 
@@ -294,7 +374,9 @@ public class TestAgent implements SubAgent {
      */
     private String getActionFromRequest(AgentRequest request) {
         if (request.getParameters() != null && request.getParameters().containsKey("action")) {
-            return request.getParameters().get("action").toString();
+            String action = request.getParameters().get("action").toString().trim();
+            log.debug("[TestAgent] Getting action from request: '{}'", action);
+            return action;
         }
         // 从用户查询中推断
         return createDefaultParseResult(request.getUserQuery()).getAction();

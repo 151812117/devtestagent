@@ -1,43 +1,66 @@
 # MCP Server
 
-基于 Solon 框架的 MCP Server，为研发支持智能体系统提供工具服务。
+基于 Solon 框架的 MCP Server，使用注解方式暴露工具，支持 SSE 协议。
 
-## 功能特性
+## 架构特点
 
-### 1. 环境资源管理
-- **applyResource** - 申请环境资源
-- **recycleResource** - 回收环境资源
+### 注解驱动
+使用自定义注解简化 MCP 工具开发：
 
-### 2. 测试工具
-- **autoInterfaceTest** - 自动化接口测试
-- **autoUITest** - 自动化界面测试
-- **resultAnalysis** - 测试结果分析
+```java
+@McpServerEndpoint(path = "/mcp", name = "test-tools", version = "1.0.0")
+public class TestTools {
+    
+    @ToolMapping(
+        name = "createBatch",
+        description = "创建测试批次",
+        inputType = CreateBatchRequest.class
+    )
+    public CreateBatchResponse createBatch(CreateBatchRequest request) {
+        // 业务逻辑
+    }
+}
+```
 
-### 3. 记忆系统
-- **readMemory** - 读取用户记忆
-- **writeMemory** - 写入用户记忆
+### MCP 协议端点
 
-## 记忆系统设计
+| 端点 | 说明 |
+|------|------|
+| GET /mcp | SSE 端点 |
+| POST /mcp/tools/list | 获取工具列表 |
+| POST /mcp/tools/call | 调用工具 |
 
-### 记忆分层
-1. **临时记忆 (EPHEMERAL)** - 1小时有效期
-2. **短期记忆 (SHORT_TERM)** - 7天有效期，内存存储
-3. **长期记忆 (LONG_TERM)** - 永久存储，文件存储
-4. **语义记忆 (SEMANTIC)** - 概念性知识
+### 自动参数 Schema
+MCP Server 自动根据 `inputType` 生成 JSON Schema，大模型会自动获取参数信息。
 
-### 存储策略
-- 短期记忆：ConcurrentHashMap + LRU 淘汰
-- 长期记忆：JSON 文件持久化 (data/memory/{userId}.json)
+## 测试批次管理工具
 
-### 记忆管理
-- 自动过期清理
-- 重要性评估（1-10）
-- 关键词提取
-- 访问统计
+### 1. createBatch - 创建测试批次
+**参数：**
+- systemName: 被测系统名
+- systemCode: 被测系统编号
+- batchLabel: 批次标识
+
+### 2. addCasesToBatch - 添加案例到批次
+**参数：**
+- caseIds: 案例编号列表
+- batchId: 批次编号
+
+### 3. executeBatch - 执行批次
+**参数：**
+- batchId: 批次编号
+- systemCode: 系统编号
+
+### 4. analyzeBatchResult - 批次结果分析
+**参数：**
+- executionId: 执行编号
+
+## 记忆工具
+
+### readMemory - 读取记忆
+### writeMemory - 写入记忆
 
 ## 快速开始
-
-### 1. 编译运行
 
 ```bash
 # 编译
@@ -46,69 +69,15 @@ mvn clean package
 # 运行
 java -jar target/mcpserver-1.0.0.jar
 
-# 或直接使用 Maven 运行
-mvn solon:run
+# 测试端点
+curl http://localhost:3000/mcp/tools/list
 ```
 
-### 2. 测试接口
+## 大模型自动获取参数
 
-```bash
-# 健康检查
-curl http://localhost:3000/tools/health
+MCP 协议通过 `tools/list` 端点返回工具的 JSON Schema，包含：
+- 工具名称
+- 工具描述
+- 输入参数的结构和类型
 
-# 申请环境资源
-curl -X POST http://localhost:3000/tools/applyResource \
-  -H "Content-Type: application/json" \
-  -d '{
-    "envType": "development",
-    "duration": 24,
-    "cpu": 4,
-    "memory": 8,
-    "storage": 100,
-    "instanceCount": 1,
-    "purpose": "开发测试",
-    "owner": "user_001"
-  }'
-
-# 写入记忆
-curl -X POST http://localhost:3000/tools/writeMemory \
-  -H "Content-Type: application/json" \
-  -d '{
-    "userId": "user_001",
-    "sessionId": "session_001",
-    "action": "applyResource",
-    "target": "development",
-    "result": "success",
-    "details": "申请了开发环境",
-    "importance": 7
-  }'
-
-# 读取记忆
-curl -X POST http://localhost:3000/tools/readMemory \
-  -H "Content-Type: application/json" \
-  -d '{
-    "userId": "user_001",
-    "sessionId": "session_001",
-    "limit": 10
-  }'
-```
-
-## API 列表
-
-| 工具 | 路径 | 方法 | 说明 |
-|------|------|------|------|
-| applyResource | /tools/applyResource | POST | 申请环境资源 |
-| recycleResource | /tools/recycleResource | POST | 回收环境资源 |
-| autoInterfaceTest | /tools/autoInterfaceTest | POST | 自动化接口测试 |
-| autoUITest | /tools/autoUITest | POST | 自动化界面测试 |
-| resultAnalysis | /tools/resultAnalysis | POST | 测试结果分析 |
-| readMemory | /tools/readMemory | POST | 读取记忆 |
-| writeMemory | /tools/writeMemory | POST | 写入记忆 |
-| health | /tools/health | GET | 健康检查 |
-
-## 技术栈
-
-- Solon 2.8.6
-- Fastjson2
-- Lombok
-- JLHttp (内置 HTTP 服务器)
+**不需要在提示词中详细说明每个参数**，大模型会自动获取这些信息。

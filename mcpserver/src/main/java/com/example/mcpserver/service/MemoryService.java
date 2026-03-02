@@ -4,12 +4,12 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.alibaba.fastjson2.JSONWriter;
 import com.alibaba.fastjson2.TypeReference;
+import com.example.mcpserver.mcp.ToolMapping;
 import com.example.mcpserver.model.*;
 import lombok.extern.slf4j.Slf4j;
 import org.noear.solon.annotation.Component;
 import org.noear.solon.annotation.Init;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -60,7 +60,12 @@ public class MemoryService {
     /**
      * 写入记忆
      */
-    public CommonResponse<WriteMemoryResponse> writeMemory(WriteMemoryRequest request) {
+    @ToolMapping(
+        name = "writeMemory",
+        description = "写入用户记忆，记录用户的操作历史",
+        inputType = WriteMemoryRequest.class
+    )
+    public WriteMemoryResponse writeMemory(WriteMemoryRequest request) {
         log.info("Writing memory: userId={}, action={}", request.getUserId(), request.getAction());
         
         String memoryId = generateMemoryId();
@@ -109,26 +114,34 @@ public class MemoryService {
             .build();
         
         log.info("Memory written: memoryId={}, type={}", memoryId, memoryType);
-        return CommonResponse.ok(response);
+        return response;
     }
     
     /**
      * 读取记忆
      */
-    public CommonResponse<ReadMemoryResponse> readMemory(ReadMemoryRequest request) {
+    @ToolMapping(
+        name = "readMemory",
+        description = "读取用户记忆，获取历史操作记录",
+        inputType = ReadMemoryRequest.class
+    )
+    public ReadMemoryResponse readMemory(ReadMemoryRequest request) {
         log.info("Reading memory: userId={}, sessionId={}", request.getUserId(), request.getSessionId());
         
         int limit = request.getLimit() != null ? request.getLimit() : 10;
         boolean includeLongTerm = request.getIncludeLongTerm() == null || request.getIncludeLongTerm();
         
+        // 防御 null userId
+        String userId = request.getUserId() != null ? request.getUserId() : "anonymous";
+        String sessionId = request.getSessionId() != null ? request.getSessionId() : "default";
+        
         // 读取短期记忆
-        List<MemoryEntry> shortTermList = getShortTermMemories(request.getUserId(), limit, request.getMemoryType(), request.getCategory());
+        List<MemoryEntry> shortTermList = getShortTermMemories(userId, limit, request.getMemoryType(), request.getCategory());
         
         // 读取长期记忆（概要）
-        Map<String, Object> longTermProfile = includeLongTerm ? getLongTermProfile(request.getUserId()) : new HashMap<>();
+        Map<String, Object> longTermProfile = includeLongTerm ? getLongTermProfile(userId) : new HashMap<>();
         
         // 获取会话上下文
-        String sessionId = request.getSessionId() != null ? request.getSessionId() : "default";
         ReadMemoryResponse.SessionContext context = sessionContext.getOrDefault(
             sessionId, 
             ReadMemoryResponse.SessionContext.builder()
@@ -139,8 +152,8 @@ public class MemoryService {
         );
         
         ReadMemoryResponse response = ReadMemoryResponse.builder()
-            .userId(request.getUserId())
-            .sessionId(request.getSessionId())
+            .userId(userId)
+            .sessionId(sessionId)
             .shortTermMemories(shortTermList)
             .longTermProfile(longTermProfile)
             .sessionContext(context)
@@ -148,7 +161,7 @@ public class MemoryService {
             .data(buildMemoryData(shortTermList, longTermProfile))
             .build();
         
-        return CommonResponse.ok(response);
+        return response;
     }
     
     /**
@@ -327,7 +340,7 @@ public class MemoryService {
             if (request.getAction().contains("Resource")) {
                 context.setCurrentTask("env_management");
                 context.setCurrentEnv(request.getTarget());
-            } else if (request.getAction().contains("Test")) {
+            } else if (request.getAction().contains("Test") || request.getAction().contains("Batch")) {
                 context.setCurrentTask("test_execution");
                 context.setCurrentTest(request.getTarget());
             }

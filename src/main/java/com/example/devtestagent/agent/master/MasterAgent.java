@@ -5,12 +5,15 @@ import com.example.devtestagent.agent.sub.TestAgent;
 import com.example.devtestagent.model.*;
 import com.example.devtestagent.mcp.MemoryService;
 import com.example.devtestagent.service.LlmService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 
@@ -26,6 +29,7 @@ public class MasterAgent {
     private final EnvManagementAgent envManagementAgent;
     private final TestAgent testAgent;
     private final MemoryService memoryService;
+    private final ObjectMapper objectMapper;
     private final Resource systemPrompt;
 
     public MasterAgent(
@@ -33,11 +37,13 @@ public class MasterAgent {
             EnvManagementAgent envManagementAgent,
             TestAgent testAgent,
             MemoryService memoryService,
+            ObjectMapper objectMapper,
             @Qualifier("masterAgentSystemPrompt") Resource systemPrompt) {
         this.llmService = llmService;
         this.envManagementAgent = envManagementAgent;
         this.testAgent = testAgent;
         this.memoryService = memoryService;
+        this.objectMapper = objectMapper;
         this.systemPrompt = systemPrompt;
     }
 
@@ -154,11 +160,17 @@ public class MasterAgent {
             prompt.append("\n");
         }
 
-        prompt.append("请根据用户输入判断：\n");
-        prompt.append("1. 任务类型（ENV_MANAGEMENT: 环境管理, TEST_EXECUTION: 测试执行）\n");
-        prompt.append("2. 目标子智能体（EnvManagementAgent / TestAgent）\n");
-        prompt.append("3. 是否需要用户确认参数\n");
-        prompt.append("4. 简要任务描述\n\n");
+        prompt.append("可用的子智能体：\n");
+        prompt.append("- EnvManagementAgent: 环境管理（申请/回收环境资源）\n");
+        prompt.append("- TestAgent: 测试执行（创建批次、添加案例、执行测试、结果分析）\n\n");
+        
+        prompt.append("请根据用户输入，以 JSON 格式返回任务规划结果：\n");
+        prompt.append("{\n");
+        prompt.append("  \"taskType\": \"ENV_MANAGEMENT 或 TEST_EXECUTION\",\n");
+        prompt.append("  \"targetAgent\": \"EnvManagementAgent 或 TestAgent\",\n");
+        prompt.append("  \"description\": \"任务描述\",\n");
+        prompt.append("  \"needConfirmation\": true\n");
+        prompt.append("}\n");
         
         return prompt.toString();
     }
@@ -167,27 +179,101 @@ public class MasterAgent {
      * 解析任务规划结果
      */
     private TaskPlan parseTaskPlan(String planResult, String userQuery) {
-        // 基于关键词匹配进行简单解析
+        try {
+            // 尝试从 JSON 中解析
+            String jsonStr = extractJson(planResult);
+            JsonNode jsonNode = objectMapper.readTree(jsonStr);
+            
+            // 解析 taskType
+            String taskTypeStr = jsonNode.has("taskType") ? jsonNode.get("taskType").asText() : "UNKNOWN";
+            TaskPlan.TaskType taskType;
+            try {
+                taskType = TaskPlan.TaskType.valueOf(taskTypeStr);
+            } catch (IllegalArgumentException e) {
+                // 如果解析失败，使用关键词回退
+                taskType = fallbackTaskType(userQuery);
+            }
+            
+            // 解析 targetAgent
+            String targetAgent = jsonNode.has("targetAgent") ? jsonNode.get("targetAgent").asText() : null;
+            if (targetAgent == null || targetAgent.isEmpty()) {
+                targetAgent = fallbackTargetAgent(userQuery, taskType);
+            }
+            
+            // 解析其他字段
+            String description = jsonNode.has("description") ? jsonNode.get("description").asText() : planResult;
+            boolean needConfirmation = jsonNode.has("needConfirmation") ? jsonNode.get("needConfirmation").asBoolean() : true;
+            
+            return TaskPlan.builder()
+                .taskType(taskType)
+                .targetAgent(targetAgent)
+                .description(description)
+                .needConfirmation(needConfirmation)
+                .build();
+                
+        } catch (Exception e) {
+            log.warn("Failed to parse planResult as JSON, using fallback: {}", e.getMessage());
+            // 解析失败时使用关键词回退
+            return fallbackParseTaskPlan(userQuery, planResult);
+        }
+    }
+    
+    /**
+     * 从字符串中提取 JSON
+     */
+    private String extractJson(String text) {
+        int start = text.indexOf("{");
+        int end = text.lastIndexOf("}");
+        if (start != -1 && end != -1 && end > start) {
+            return text.substring(start, end + 1);
+        }
+        return text;
+    }
+    
+    /**
+     * 回退：基于关键词匹配 taskType
+     */
+    private TaskPlan.TaskType fallbackTaskType(String userQuery) {
         String lowerQuery = userQuery.toLowerCase();
-
-        TaskPlan.TaskType taskType;
-        String targetAgent;
-
+        
         if (lowerQuery.contains("环境") || lowerQuery.contains("资源") || 
             lowerQuery.contains("申请") || lowerQuery.contains("回收") ||
             lowerQuery.contains("env") || lowerQuery.contains("resource")) {
-            taskType = TaskPlan.TaskType.ENV_MANAGEMENT;
-            targetAgent = "EnvManagementAgent";
+            return TaskPlan.TaskType.ENV_MANAGEMENT;
         } else if (lowerQuery.contains("测试") || lowerQuery.contains("接口") || 
                    lowerQuery.contains("界面") || lowerQuery.contains("test") ||
-                   lowerQuery.contains("api")) {
-            taskType = TaskPlan.TaskType.TEST_EXECUTION;
-            targetAgent = "TestAgent";
-        } else {
-            taskType = TaskPlan.TaskType.UNKNOWN;
-            targetAgent = "Unknown";
+                   lowerQuery.contains("api") || lowerQuery.contains("批次") ||
+                   lowerQuery.contains("案例") || lowerQuery.contains("执行")) {
+            return TaskPlan.TaskType.TEST_EXECUTION;
         }
-
+        return TaskPlan.TaskType.UNKNOWN;
+    }
+    
+    /**
+     * 回退：基于关键词匹配 targetAgent
+     */
+    private String fallbackTargetAgent(String userQuery, TaskPlan.TaskType taskType) {
+        if (taskType == TaskPlan.TaskType.ENV_MANAGEMENT) {
+            return "EnvManagementAgent";
+        } else if (taskType == TaskPlan.TaskType.TEST_EXECUTION) {
+            return "TestAgent";
+        }
+        
+        // 再试试关键词
+        String lowerQuery = userQuery.toLowerCase();
+        if (lowerQuery.contains("环境") || lowerQuery.contains("资源")) {
+            return "EnvManagementAgent";
+        }
+        return "TestAgent";
+    }
+    
+    /**
+     * 完全回退解析
+     */
+    private TaskPlan fallbackParseTaskPlan(String userQuery, String planResult) {
+        TaskPlan.TaskType taskType = fallbackTaskType(userQuery);
+        String targetAgent = fallbackTargetAgent(userQuery, taskType);
+        
         return TaskPlan.builder()
             .taskType(taskType)
             .targetAgent(targetAgent)

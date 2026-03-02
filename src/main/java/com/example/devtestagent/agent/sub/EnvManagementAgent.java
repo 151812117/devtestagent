@@ -132,7 +132,12 @@ public class EnvManagementAgent implements SubAgent {
         userPrompt.append("1. 操作类型（applyResource/recycleResource）\n");
         userPrompt.append("2. 环境类型（development/testing/staging/production）\n");
         userPrompt.append("3. 其他相关参数\n\n");
-        userPrompt.append("请以 JSON 格式返回解析结果。");
+        userPrompt.append("请以 JSON 格式返回解析结果，包含以下字段：\n");
+        userPrompt.append("- action: 操作类型\n");
+        userPrompt.append("- target: 操作目标\n");
+        userPrompt.append("- parameters: 提取的参数\n");
+        userPrompt.append("- think: 你的思考过程，包括对用户意图的理解、提取了哪些参数、哪些参数缺失需要用户补充\n");
+        userPrompt.append("- missingParameters: 需要补充的参数名和说明\n");
 
         return userPrompt.toString();
     }
@@ -154,6 +159,16 @@ public class EnvManagementAgent implements SubAgent {
                 parameters = objectMapper.convertValue(jsonNode.get("parameters"), 
                     new TypeReference<Map<String, Object>>() {});
             }
+            
+            // 提取思考过程
+            String think = jsonNode.has("think") ? jsonNode.get("think").asText() : "";
+            
+            // 提取需要补充的参数
+            Map<String, String> missingParameters = new HashMap<>();
+            if (jsonNode.has("missingParameters")) {
+                missingParameters = objectMapper.convertValue(jsonNode.get("missingParameters"), 
+                    new TypeReference<Map<String, String>>() {});
+            }
 
             // 设置默认值
             setDefaultValues(action, parameters);
@@ -171,6 +186,18 @@ public class EnvManagementAgent implements SubAgent {
             paramDescriptions.put("resourceId", "资源ID");
             paramDescriptions.put("recycleType", "回收类型");
             paramDescriptions.put("reason", "回收原因");
+            
+            // 根据缺失参数数量判断确认消息
+            String confirmationMessage;
+            if (missingParameters.isEmpty()) {
+                confirmationMessage = "请确认以上环境操作参数是否正确";
+            } else if (missingParameters.size() == 1) {
+                String paramName = missingParameters.keySet().iterator().next();
+                String paramDesc = missingParameters.get(paramName);
+                confirmationMessage = "请补充" + paramDesc + "信息";
+            } else {
+                confirmationMessage = "请补充以下参数信息";
+            }
 
             return IntentParseResult.builder()
                 .action(action)
@@ -180,7 +207,9 @@ public class EnvManagementAgent implements SubAgent {
                 .confidence(0.9)
                 .originalQuery(originalQuery)
                 .needConfirmation(true)
-                .confirmationMessage("请确认以上环境操作参数是否正确")
+                .confirmationMessage(confirmationMessage)
+                .think(think)
+                .missingParameters(missingParameters)
                 .build();
 
         } catch (Exception e) {
@@ -250,6 +279,8 @@ public class EnvManagementAgent implements SubAgent {
             .originalQuery(originalQuery)
             .needConfirmation(true)
             .confirmationMessage("已根据您的输入提取参数，请确认或修改")
+            .think("从用户输入中提取了基本参数，请确认或补充缺失信息")
+            .missingParameters(new HashMap<>())
             .build();
     }
 

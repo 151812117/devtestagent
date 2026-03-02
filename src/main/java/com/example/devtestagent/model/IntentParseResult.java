@@ -55,4 +55,14 @@ public class IntentParseResult {
      * 确认提示信息
      */
     private String confirmationMessage;
+    
+    /**
+     * 大模型思考过程
+     */
+    private String think;
+    
+    /**
+     * 需要补充的参数列表
+     */
+    private Map<String, String> missingParameters;
 }

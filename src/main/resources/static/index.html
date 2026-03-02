@@ -263,6 +263,52 @@
             color: white;
         }
 
+        .think-section {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .think-section h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .think-content {
+            color: #555;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        .follow-up-section {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .follow-up-section h4 {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+
+        .follow-up-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        .follow-up-input:focus {
+            outline: none;
+            border-color: #ff9800;
+        }
+
         @media (max-width: 768px) {
             .form-row {
                 grid-template-columns: 1fr;
@@ -308,6 +354,16 @@
                 <h3 class="result-title">📋 意图解析结果</h3>
                 <div id="intentJson" class="json-viewer"></div>
 
+                <div class="think-section" id="thinkSection">
+                    <h4>💭 思考过程</h4>
+                    <div id="thinkContent" class="think-content"></div>
+                </div>
+
+                <div class="follow-up-section hidden" id="followUpSection">
+                    <h4>📝 补充信息</h4>
+                    <div id="followUpContent"></div>
+                </div>
+
                 <div class="parameter-form" id="parameterForm">
                     <h4>参数确认</h4>
                     <div id="parameterFields"></div>
@@ -334,6 +390,29 @@
         let currentRequestId = null;
         let currentQuery = null;
         let currentIntent = null;
+        let typewriterInterval = null;
+
+        // 打字机效果函数（支持回调）
+        function typewriterEffect(element, text, speed = 30, callback = null) {
+            element.textContent = '';
+            let i = 0;
+            
+            if (typewriterInterval) {
+                clearInterval(typewriterInterval);
+            }
+            
+            typewriterInterval = setInterval(() => {
+                if (i < text.length) {
+                    element.textContent += text.charAt(i);
+                    i++;
+                } else {
+                    clearInterval(typewriterInterval);
+                    if (callback) {
+                        callback();
+                    }
+                }
+            }, speed);
+        }
 
         function switchTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -427,18 +506,72 @@
         }
 
         function renderParameterForm(intentResult) {
-            const container = document.getElementById('parameterFields');
-            container.innerHTML = '';
-
-            if (!intentResult || !intentResult.parameters) {
-                container.innerHTML = '<p>无参数需要确认</p>';
-                return;
+            const followUpSection = document.getElementById('followUpSection');
+            const parameterForm = document.getElementById('parameterForm');
+            const parameterFields = document.getElementById('parameterFields');
+            
+            parameterFields.innerHTML = '';
+            
+            // 隐藏追问区域，统一使用表单
+            followUpSection.classList.add('hidden');
+            parameterForm.classList.remove('hidden');
+            
+            // 显示思考过程（打字机效果）
+            const thinkContent = document.getElementById('thinkContent');
+            const thinkText = intentResult.think || '正在分析您的需求...';
+            typewriterEffect(thinkContent, thinkText);
+            
+            // 渲染所有参数（包括已有参数和需要补充的参数）
+            const descriptions = intentResult.parameterDescriptions || {};
+            
+            // 合并所有参数：parameters + missingParameters
+            const allParams = {};
+            if (intentResult.parameters) {
+                Object.assign(allParams, intentResult.parameters);
             }
+            if (intentResult.missingParameters) {
+                for (const [key, desc] of Object.entries(intentResult.missingParameters)) {
+                    if (!allParams.hasOwnProperty(key)) {
+                        allParams[key] = '';
+                    }
+                    // 更新描述
+                    if (!descriptions[key]) {
+                        descriptions[key] = desc;
+                    }
+                }
+            }
+            
+            for (const [key, value] of Object.entries(allParams)) {
+                // 跳过 action 字段，它由后端自动处理
+                if (key === 'action') continue;
+                
+                const row = document.createElement('div');
+                row.className = 'form-row';
+                
+                const label = document.createElement('label');
+                label.textContent = descriptions[key] || key;
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = `param_${key}`;
+                input.value = value !== null && value !== undefined ? value : '';
+                
+                row.appendChild(label);
+                row.appendChild(input);
+                parameterFields.appendChild(row);
+            }
+        }
 
+        // 渲染已有参数
+        function renderExistingParameters(intentResult) {
+            const container = document.getElementById('parameterFields');
             const params = intentResult.parameters;
             const descriptions = intentResult.parameterDescriptions || {};
 
             for (const [key, value] of Object.entries(params)) {
+                // 跳过 action 字段，它由后端自动处理
+                if (key === 'action') continue;
+                
                 const row = document.createElement('div');
                 row.className = 'form-row';
 
@@ -454,6 +587,50 @@
                 row.appendChild(input);
                 container.appendChild(row);
             }
+        }
+
+        // 提交单个追问参数
+        function submitFollowUp() {
+            const input = document.getElementById('followUpInput');
+            const paramName = input.getAttribute('data-param-name');
+            const value = input.value.trim();
+            
+            if (!value) {
+                alert('请输入信息');
+                return;
+            }
+            
+            // 将补充的参数加入 currentIntent
+            if (!currentIntent.parameters) {
+                currentIntent.parameters = {};
+            }
+            currentIntent.parameters[paramName] = value;
+            
+            // 隐藏追问区域，显示确认表单
+            document.getElementById('followUpSection').classList.add('hidden');
+            document.getElementById('parameterForm').classList.remove('hidden');
+            
+            // 重新渲染参数表单
+            renderExistingParameters(currentIntent);
+        }
+
+        // 提交多个缺失参数
+        function submitMissingParams() {
+            const missingParams = currentIntent.missingParameters || {};
+            
+            for (const key of Object.keys(missingParams)) {
+                const input = document.getElementById(`missing_${key}`);
+                if (input && input.value.trim()) {
+                    currentIntent.parameters[key] = input.value.trim();
+                }
+            }
+            
+            // 清空 missingParameters
+            currentIntent.missingParameters = {};
+            
+            // 重新渲染
+            document.getElementById('followUpSection').classList.add('hidden');
+            renderExistingParameters(currentIntent);
         }
 
         async function executeTask() {

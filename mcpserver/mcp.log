@@ -1,0 +1,12 @@
+[Solon] App: Start loading
+[Solon] App: Plugin starting
+[Solon] Session: Local session state plugin is loaded
+[Solon] View: load: FreemarkerRender
+[Solon] View: load: org.noear.solon.view.freemarker.FreemarkerRender
+[Solon] Render mapping: .ftl=FreemarkerRender
+[Solon] App: Bean scanning
+[Solon] Render mapping: @json=StringSerializerRender#snack3-json
+[Solon] Render mapping: @type_json=StringSerializerRender#snack3-json
+[Solon] solon.connector:main: smarthttp: Started ServerConnector@{HTTP/1.1,[http/1.1]}{http://0.0.0.0:3000}
+[Solon] Server:main: smarthttp: Started (smart http 1.5/2.8.6) @209ms
+[Solon] App: End loading elapsed=847ms pid=9728 v=2.8.6

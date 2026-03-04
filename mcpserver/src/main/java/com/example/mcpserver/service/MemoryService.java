@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.alibaba.fastjson2.JSONWriter;
 import com.alibaba.fastjson2.TypeReference;
+import com.example.mcpserver.mcp.McpServerEndpoint;
 import com.example.mcpserver.mcp.ToolMapping;
 import com.example.mcpserver.model.*;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
+@McpServerEndpoint(path = "/mcp", name = "memory-tools", version = "1.0.0")
 public class MemoryService {
     
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");

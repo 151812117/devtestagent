@@ -23,6 +23,10 @@ import java.util.UUID;
 @McpServerEndpoint(path = "/mcp", name = "test-tools", version = "1.0.0")
 public class TestTools {
     
+    static {
+        log.info("TestTools class loaded!");
+    }
+    
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     
     // ==================== 测试批次管理工具 ====================

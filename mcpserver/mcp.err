@@ -1,0 +1,12 @@
+[main] INFO com.example.mcpserver.McpServerApp - MCP Server routes registered
+[main] INFO com.example.mcpserver.service.TestTools - TestTools class loaded!
+[main] INFO com.example.mcpserver.service.MemoryService - Memory service initialized. Long-term memory dir: data\memory
+[Thread-1] INFO com.example.mcpserver.McpServerApp - Initializing MCP Server handler...
+[Thread-1] INFO com.example.mcpserver.mcp.McpServerHandler - MCP Tool registered: name=executeBatch, description=执行指定批次的所有测试案例
+[Thread-1] INFO com.example.mcpserver.mcp.McpServerHandler - MCP Tool registered: name=addCasesToBatch, description=将测试案例添加到指定的测试批次中
+[Thread-1] INFO com.example.mcpserver.mcp.McpServerHandler - MCP Tool registered: name=analyzeBatchResult, description=分析批次的执行结果，生成测试报告和统计信息
+[Thread-1] INFO com.example.mcpserver.mcp.McpServerHandler - MCP Tool registered: name=createBatch, description=创建一个新的测试批次，用于组织和管理测试案例
+[Thread-1] INFO com.example.mcpserver.mcp.McpServerHandler - MCP Tool registered: name=recycleResource, description=回收环境资源
+[Thread-1] INFO com.example.mcpserver.mcp.McpServerHandler - MCP Tool registered: name=applyResource, description=申请环境资源用于测试
+[Thread-1] INFO com.example.mcpserver.mcp.McpServerHandler - MCP Server initialized: name=dev-test-mcp, version=1.0.0, tools=6
+[Thread-1] INFO com.example.mcpserver.McpServerApp - MCP Server tools initialized, count: 6

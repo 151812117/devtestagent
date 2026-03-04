@@ -1,5 +1,6 @@
 {
     "workbench.editor.languageDetection": true,
     "claudeCode.environmentVariables": [],
-    "java.configuration.updateBuildConfiguration": "interactive"
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "java.compile.nullAnalysis.mode": "disabled"
 }

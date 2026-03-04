@@ -37,9 +37,17 @@ public class McpServerHandler {
     public void init() {
         AppContext appContext = Solon.context();
         
+        log.info("[MCP] Starting tool scan...");
+        
         // 扫描所有 Bean
         Map<String, BeanWrap> beanMap = new HashMap<>();
-        appContext.beanForeach(beanMap::put);
+        appContext.beanForeach((name, wrap) -> {
+            log.debug("[MCP] Found bean: name={}, class={}", name, 
+                wrap.clz() != null ? wrap.clz().getSimpleName() : "null");
+            beanMap.put(name, wrap);
+        });
+        
+        log.info("[MCP] Total beans found: {}", beanMap.size());
         
         for (BeanWrap wrap : beanMap.values()) {
             Class<?> clazz = wrap.clz();
@@ -47,7 +55,12 @@ public class McpServerHandler {
             
             // 检查类是否有 @McpServerEndpoint
             McpServerEndpoint endpoint = clazz.getAnnotation(McpServerEndpoint.class);
-            if (endpoint == null) continue;
+            if (endpoint == null) {
+                log.debug("[MCP] Class {} does not have @McpServerEndpoint", clazz.getSimpleName());
+                continue;
+            }
+            
+            log.info("[MCP] Found @McpServerEndpoint class: {}", clazz.getName());
             
             Object instance = wrap.get();
             
@@ -79,6 +92,13 @@ public class McpServerHandler {
         
         log.info("MCP Server initialized: name={}, version={}, tools={}", 
             serverName, serverVersion, tools.size());
+    }
+    
+    /**
+     * 获取已注册工具数量
+     */
+    public int getToolCount() {
+        return tools.size();
     }
     
     /**
@@ -157,13 +177,19 @@ public class McpServerHandler {
         ctx.contentType("application/json");
         
         String body = ctx.body();
+        log.debug("Tools call request body: {}", body);
+        
         JSONObject request = JSON.parseObject(body);
         
         String toolName = request.getString("name");
         JSONObject arguments = request.getJSONObject("arguments");
         
+        log.info("Tool call: name={}, arguments={}", toolName, arguments);
+        log.info("Available tools: {}", toolHandlers.keySet());
+        
         ToolHandler handler = toolHandlers.get(toolName);
         if (handler == null) {
+            log.error("Tool not found: {}", toolName);
             ctx.output(JSON.toJSONString(createErrorResult("Tool not found: " + toolName)));
             return;
         }

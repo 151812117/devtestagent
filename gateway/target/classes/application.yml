@@ -1,0 +1,21 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway
+
+# Agent 服务配置
+agent:
+  service:
+    url: http://localhost:8081
+
+# MCP Server 配置
+mcp:
+  server:
+    url: http://localhost:3000
+
+# 日志配置
+logging:
+  level:
+    com.example.gateway: DEBUG

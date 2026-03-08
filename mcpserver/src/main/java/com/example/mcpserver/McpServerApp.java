@@ -20,11 +20,10 @@ public class McpServerApp {
             // 设置端口为 3000
             app.cfg().setProperty("server.port", "3000");
             
-            // 注册 MCP Server 处理器
-            app.get("/mcp", mcpHandler::handle);
-            app.get("/mcp/tools/list", mcpHandler::handle);
-            app.post("/mcp/tools/call", mcpHandler::handle);
-            app.post("/mcp/tools/list", mcpHandler::handle);
+            // 注册 MCP Server 处理器 - 支持所有 HTTP 方法
+            app.all("/mcp", mcpHandler::handle);
+            app.all("/mcp/tools/list", mcpHandler::handle);
+            app.all("/mcp/tools/call", mcpHandler::handle);
             
             log.info("MCP Server routes registered");
         });

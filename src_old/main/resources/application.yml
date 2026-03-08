@@ -1,0 +1,35 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: dev-test-agent
+
+# LLM Configuration
+llm:
+  api:
+    key: sk-2f91a86b0eb74c2493830330169a847d
+    # key: test
+  model: qwen-plus
+  temperature: 0.7
+
+# MCP Server Configuration
+mcp:
+  server:
+    url: ${MCP_SERVER_URL:http://localhost:3000}
+    tools:
+      applyResource: /tools/applyResource
+      recycleResource: /tools/recycleResource
+      autoInterfaceTest: /tools/autoInterfaceTest
+      autoUITest: /tools/autoUITest
+      resultAnalysis: /tools/resultAnalysis
+      readMemory: /tools/readMemory
+      writeMemory: /tools/writeMemory
+
+logging:
+  charset:
+    console: UTF-8
+    file: UTF-8
+  level:
+    com.example.devtestagent: DEBUG
+    org.springframework.web: INFO

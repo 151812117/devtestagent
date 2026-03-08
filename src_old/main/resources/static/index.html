@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>研发支持智能体系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 顶部标题 */
+        .header {
+            background: white;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 1.2rem;
+            color: #333;
+            font-weight: 600;
+        }
+
+        /* 对话容器 */
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            max-width: 900px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        /* 消息样式 */
+        .message {
+            display: flex;
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message.ai {
+            justify-content: flex-start;
+        }
+
+        .message-content {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.6;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.ai .message-content {
+            background: white;
+            color: #333;
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.ai .avatar {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        /* AI 消息中的组件样式 */
+        .ai-message-body {
+            width: 100%;
+        }
+
+        /* 思考过程样式 */
+        .think-section {
+            background: #f8f9fa;
+            border-left: 3px solid #667eea;
+            padding: 12px 15px;
+            margin-bottom: 15px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .think-section h4 {
+            color: #667eea;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .think-content {
+            color: #555;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        /* 参数表单样式 */
+        .parameter-form {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .parameter-form h4 {
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .form-row {
+            margin-bottom: 12px;
+        }
+
+        .form-row label {
+            display: block;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .form-row input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .form-row input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        /* 执行结果样式 */
+        .execution-result {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border-left: 3px solid #28a745;
+            padding: 15px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 10px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #155724;
+            min-height: 50px;
+        }
+
+        /* 可折叠区域样式 */
+        .collapsible-section {
+            margin-bottom: 15px;
+        }
+
+        .collapsible-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: #f0f0f0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 13px;
+        }
+
+        .collapsible-header:hover {
+            background: #e0e0e0;
+        }
+
+        .collapsible-toggle {
+            font-size: 10px;
+            color: #667eea;
+            transition: transform 0.3s;
+        }
+
+        .collapsible-toggle.expanded {
+            transform: rotate(180deg);
+        }
+
+        .collapsible-content {
+            display: none;
+            padding: 12px;
+            background: #fafafa;
+            border-radius: 0 0 6px 6px;
+            margin-top: -3px;
+        }
+
+        .collapsible-content.expanded {
+            display: block;
+        }
+
+        .json-viewer {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .json-key { color: #9cdcfe; }
+        .json-string { color: #ce9178; }
+        .json-number { color: #b5cea8; }
+        .json-boolean { color: #569cd6; }
+
+        /* 底部输入区域 */
+        .input-area {
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            padding: 15px 20px;
+        }
+
+        .input-container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        /* 标签按钮 */
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .tab-btn {
+            padding: 6px 16px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 16px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+
+        /* 输入框 */
+        .input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 12px;
+        }
+
+        .input-wrapper textarea {
+            flex: 1;
+            border: none;
+            background: transparent;
+            resize: none;
+            font-size: 15px;
+            line-height: 1.5;
+            max-height: 120px;
+            min-height: 24px;
+            padding: 5px;
+        }
+
+        .input-wrapper textarea:focus {
+            outline: none;
+        }
+
+        .send-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 3px 10px rgba(102, 126, 234, 0.4);
+        }
+
+        .send-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* 示例提示 */
+        .example-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .example-chip {
+            padding: 5px 12px;
+            background: #f0f0f0;
+            border-radius: 14px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #666;
+        }
+
+        .example-chip:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        /* 加载动画 */
+        .loading-dots {
+            display: inline-flex;
+            gap: 4px;
+            padding: 12px 16px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            border-bottom-left-radius: 4px;
+        }
+
+        .loading-dots span {
+            width: 8px;
+            height: 8px;
+            background: #667eea;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        /* 按钮样式 */
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-success:hover {
+            opacity: 0.9;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        /* 隐藏元素 */
+        .hidden {
+            display: none !important;
+        }
+
+        /* 用户ID输入 */
+        .user-id-input {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .user-id-input label {
+            font-size: 13px;
+            color: #666;
+            white-space: nowrap;
+        }
+
+        .user-id-input input {
+            flex: 1;
+            max-width: 150px;
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 研发支持智能体系统</h1>
+    </div>
+
+    <!-- 对话展示区 -->
+    <div class="chat-container" id="chatContainer">
+        <!-- 欢迎消息 -->
+        <div class="message ai">
+            <div class="avatar">🤖</div>
+            <div class="message-content">
+                您好！我是研发支持智能体，可以帮助您进行环境管理和测试执行。<br>
+                请告诉我您需要什么帮助？
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部输入区域 -->
+    <div class="input-area">
+        <div class="input-container">
+            <!-- 用户ID -->
+            <div class="user-id-input">
+                <label>用户ID：</label>
+                <input type="text" id="userId" value="user_001" placeholder="请输入用户ID">
+            </div>
+            
+            <!-- 标签按钮 -->
+            <div class="tab-buttons">
+                <button class="tab-btn active" onclick="switchTab('env', this)">环境管理</button>
+                <button class="tab-btn" onclick="switchTab('test', this)">测试执行</button>
+            </div>
+
+            <!-- 输入框 -->
+            <div class="input-wrapper">
+                <textarea id="userQuery" rows="1" placeholder="请输入您的需求..." 
+                    onkeydown="handleKeyDown(event)" oninput="autoResize(this)"></textarea>
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- 示例提示 -->
+            <div class="example-chips" id="exampleChips">
+                <span class="example-chip" onclick="setQuery('申请一个开发环境，CPU 4核，内存8G')">申请开发环境</span>
+                <span class="example-chip" onclick="setQuery('回收测试环境 test-env-001')">回收测试环境</span>
+                <span class="example-chip" onclick="setQuery('对 http://api.example.com 进行接口测试')">执行接口测试</span>
+                <span class="example-chip" onclick="setQuery('分析最近的测试结果')">分析测试结果</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentRequestId = null;
+        let currentQuery = null;
+        let currentIntent = null;
+        let typewriterInterval = null;
+        let currentTab = 'env';
+        let currentAIMessageId = null;
+        let aiMessageCounter = 0;
+
+        // 自动调整文本框高度
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        }
+
+        // 处理回车发送
+        function handleKeyDown(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        // 切换标签
+        function switchTab(tab, btn) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            const chips = document.getElementById('exampleChips');
+            if (tab === 'env') {
+                chips.innerHTML = `
+                    <span class="example-chip" onclick="setQuery('申请一个开发环境，CPU 4核，内存8G')">申请开发环境</span>
+                    <span class="example-chip" onclick="setQuery('申请测试环境，24小时')">申请测试环境</span>
+                    <span class="example-chip" onclick="setQuery('回收开发环境 dev-001')">回收开发环境</span>
+                    <span class="example-chip" onclick="setQuery('释放测试环境资源')">释放测试资源</span>
+                `;
+            } else {
+                chips.innerHTML = `
+                    <span class="example-chip" onclick="setQuery('对 http://api.example.com 进行接口测试')">执行接口测试</span>
+                    <span class="example-chip" onclick="setQuery('执行Web界面自动化测试')">执行UI测试</span>
+                    <span class="example-chip" onclick="setQuery('分析测试ID为test-001的结果')">分析测试结果</span>
+                    <span class="example-chip" onclick="setQuery('生成测试报告')">生成测试报告</span>
+                `;
+            }
+        }
+
+        // 设置输入内容
+        function setQuery(query) {
+            const textarea = document.getElementById('userQuery');
+            textarea.value = query;
+            textarea.focus();
+            autoResize(textarea);
+        }
+
+        // 打字机效果
+        function typewriterEffect(element, text, speed = 30, callback = null) {
+            if (!element) return;
+            element.textContent = '';
+            let i = 0;
+            
+            if (typewriterInterval) {
+                clearInterval(typewriterInterval);
+            }
+            
+            const content = String(text || '');
+            
+            typewriterInterval = setInterval(() => {
+                if (i < content.length) {
+                    element.textContent += content.charAt(i);
+                    i++;
+                } else {
+                    clearInterval(typewriterInterval);
+                    if (callback) callback();
+                }
+            }, speed);
+        }
+
+        // 添加用户消息
+        function addUserMessage(text) {
+            const container = document.getElementById('chatContainer');
+            const message = document.createElement('div');
+            message.className = 'message user';
+            message.innerHTML = `<div class="message-content">${escapeHtml(text)}</div>`;
+            container.appendChild(message);
+            scrollToBottom();
+        }
+
+        // 添加AI消息容器
+        function addAIMessageContainer() {
+            aiMessageCounter++;
+            currentAIMessageId = `aiMessage_${aiMessageCounter}`;
+            
+            const container = document.getElementById('chatContainer');
+            const message = document.createElement('div');
+            message.className = 'message ai';
+            message.innerHTML = `
+                <div class="avatar">🤖</div>
+                <div class="message-content ai-message-body" id="${currentAIMessageId}">
+                    <div class="loading-dots" id="loadingIndicator_${currentAIMessageId}">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            `;
+            container.appendChild(message);
+            scrollToBottom();
+            return message;
+        }
+
+        // 隐藏加载动画
+        function hideLoading() {
+            if (currentAIMessageId) {
+                const loading = document.getElementById(`loadingIndicator_${currentAIMessageId}`);
+                if (loading) loading.remove();
+            }
+        }
+
+        // 获取当前AI消息体
+        function getCurrentAIMessageBody() {
+            return currentAIMessageId ? document.getElementById(currentAIMessageId) : null;
+        }
+
+        // 滚动到底部
+        function scrollToBottom() {
+            const container = document.getElementById('chatContainer');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // HTML转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 切换可折叠区域
+        function toggleCollapsible(id) {
+            const content = document.getElementById(id);
+            const toggle = document.getElementById(id + 'Toggle');
+            
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                if (toggle) toggle.classList.remove('expanded');
+            } else {
+                content.classList.add('expanded');
+                if (toggle) toggle.classList.add('expanded');
+            }
+        }
+
+        // JSON语法高亮
+        function syntaxHighlight(json) {
+            if (typeof json !== 'string') {
+                json = JSON.stringify(json, null, 2);
+            }
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                let cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                    } else {
+                        cls = 'json-string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'json-null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
+        // 发送消息
+        async function sendMessage() {
+            const queryInput = document.getElementById('userQuery');
+            const query = queryInput.value.trim();
+            const userId = document.getElementById('userId').value.trim();
+
+            if (!query) return;
+
+            // 添加用户消息
+            addUserMessage(query);
+            
+            // 清空输入框
+            queryInput.value = '';
+            queryInput.style.height = 'auto';
+            
+            // 禁用发送按钮
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+
+            currentQuery = query;
+
+            // 添加AI消息容器
+            addAIMessageContainer();
+
+            try {
+                // 第一步：解析意图
+                const response = await fetch('/api/agent/intent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, userId })
+                });
+
+                const result = await response.json();
+                console.log('Intent result:', result);
+
+                currentRequestId = result.requestId;
+                currentIntent = result.intentResult;
+
+                // 渲染意图解析结果
+                renderIntentResult(result);
+
+            } catch (error) {
+                hideLoading();
+                const aiBody = getCurrentAIMessageBody();
+                if (aiBody) {
+                    aiBody.innerHTML = `<div style="color: #dc3545;">抱歉，处理失败：${escapeHtml(error.message)}</div>`;
+                }
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        // 渲染意图解析结果
+        function renderIntentResult(result) {
+            hideLoading();
+            const aiBody = getCurrentAIMessageBody();
+            if (!aiBody) return;
+
+            const intent = result.intentResult;
+            
+            // 构建HTML
+            let html = '';
+            
+            // 可折叠的JSON详情
+            html += `
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleCollapsible('intentJson_${currentRequestId}')">
+                        <span>🔍 查看原始响应 (点击展开)</span>
+                        <span class="collapsible-toggle" id="intentJson_${currentRequestId}Toggle">▼</span>
+                    </div>
+                    <div class="collapsible-content" id="intentJson_${currentRequestId}">
+                        <div class="json-viewer">${syntaxHighlight(result)}</div>
+                    </div>
+                </div>
+            `;
+            
+            // 思考过程
+            html += `
+                <div class="think-section">
+                    <h4>💭 思考过程</h4>
+                    <div id="thinkContent_${currentRequestId}" class="think-content"></div>
+                </div>
+            `;
+            
+            // 参数确认表单
+            html += `
+                <div class="parameter-form" id="parameterForm_${currentRequestId}">
+                    <h4>参数确认</h4>
+                    <div id="parameterFields_${currentRequestId}"></div>
+                    <div class="form-actions">
+                        <button class="btn btn-success" onclick="executeTask()">确认执行</button>
+                    </div>
+                </div>
+            `;
+            
+            aiBody.innerHTML = html;
+            
+            // 打字机效果显示思考过程
+            const thinkContent = document.getElementById(`thinkContent_${currentRequestId}`);
+            const thinkText = intent.think || '正在分析您的需求...';
+            typewriterEffect(thinkContent, thinkText, 30, () => {
+                // 思考过程显示完成后渲染参数表单
+                renderParameterForm(intent);
+            });
+            
+            scrollToBottom();
+        }
+
+        // 渲染参数表单
+        function renderParameterForm(intentResult) {
+            const container = document.getElementById(`parameterFields_${currentRequestId}`);
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            const descriptions = intentResult.parameterDescriptions || {};
+            
+            // 合并所有参数
+            const allParams = {};
+            if (intentResult.parameters) {
+                Object.assign(allParams, intentResult.parameters);
+            }
+            if (intentResult.missingParameters) {
+                for (const [key, desc] of Object.entries(intentResult.missingParameters)) {
+                    if (!allParams.hasOwnProperty(key)) {
+                        allParams[key] = '';
+                    }
+                    if (!descriptions[key]) {
+                        descriptions[key] = desc;
+                    }
+                }
+            }
+            
+            for (const [key, value] of Object.entries(allParams)) {
+                if (key === 'action') continue;
+                
+                const row = document.createElement('div');
+                row.className = 'form-row';
+                
+                const label = document.createElement('label');
+                label.textContent = descriptions[key] || key;
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = `param_${currentRequestId}_${key}`;
+                input.value = value !== null && value !== undefined ? value : '';
+                input.placeholder = `请输入${descriptions[key] || key}`;
+                
+                row.appendChild(label);
+                row.appendChild(input);
+                container.appendChild(row);
+            }
+        }
+
+        // 执行任务
+        async function executeTask() {
+            if (!currentRequestId || !currentIntent) {
+                alert('请先发送消息');
+                return;
+            }
+
+            // 收集参数
+            const confirmedParams = {};
+            const inputs = document.querySelectorAll(`[id^="param_${currentRequestId}_"]`);
+            inputs.forEach(input => {
+                const key = input.id.replace(`param_${currentRequestId}_`, '');
+                confirmedParams[key] = input.value;
+            });
+
+            // 添加用户确认消息
+            addUserMessage('确认执行');
+            
+            // 添加AI执行中消息
+            addAIMessageContainer();
+
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/agent/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        requestId: currentRequestId,
+                        query: currentQuery,
+                        userId: document.getElementById('userId').value.trim(),
+                        parameters: confirmedParams
+                    })
+                });
+
+                const result = await response.json();
+                console.log('Execution result:', result);
+
+                // 渲染执行结果
+                renderExecutionResult(result);
+
+            } catch (error) {
+                hideLoading();
+                const aiBody = getCurrentAIMessageBody();
+                if (aiBody) {
+                    aiBody.innerHTML = `<div style="color: #dc3545;">执行失败：${escapeHtml(error.message)}</div>`;
+                }
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        // 渲染执行结果
+        function renderExecutionResult(result) {
+            hideLoading();
+            const aiBody = getCurrentAIMessageBody();
+            if (!aiBody) return;
+
+            // 获取执行结果消息
+            let message = '执行完成';
+            if (result.executionResult) {
+                if (result.executionResult.data && result.executionResult.data.message) {
+                    message = result.executionResult.data.message;
+                } else if (result.executionResult.message) {
+                    message = result.executionResult.message;
+                } else if (result.executionResult.success === false) {
+                    message = '执行失败';
+                }
+            } else if (result.errorMessage) {
+                message = '错误: ' + result.errorMessage;
+            }
+
+            aiBody.innerHTML = `<div class="execution-result" id="executionMsg_${currentRequestId}"></div>`;
+            
+            const msgEl = document.getElementById(`executionMsg_${currentRequestId}`);
+            typewriterEffect(msgEl, message, 30);
+            
+            scrollToBottom();
+        }
+    </script>
+</body>
+</html>

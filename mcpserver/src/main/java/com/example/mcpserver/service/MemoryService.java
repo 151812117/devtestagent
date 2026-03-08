@@ -68,7 +68,8 @@ public class MemoryService {
         inputType = WriteMemoryRequest.class
     )
     public WriteMemoryResponse writeMemory(WriteMemoryRequest request) {
-        log.info("Writing memory: userId={}, action={}", request.getUserId(), request.getAction());
+        log.info("Writing memory: userId={}, action={}, target={}, result={}, details={}", 
+            request.getUserId(), request.getAction(), request.getTarget(), request.getResult(), request.getDetails());
         
         String memoryId = generateMemoryId();
         String now = LocalDateTime.now().format(FORMATTER);
@@ -115,7 +116,8 @@ public class MemoryService {
             .message("Memory saved successfully")
             .build();
         
-        log.info("Memory written: memoryId={}, type={}", memoryId, memoryType);
+        log.info("Memory written: memoryId={}, type={}, entry={}", memoryId, memoryType, 
+            JSON.toJSONString(entry));
         return response;
     }
     
@@ -128,7 +130,8 @@ public class MemoryService {
         inputType = ReadMemoryRequest.class
     )
     public ReadMemoryResponse readMemory(ReadMemoryRequest request) {
-        log.info("Reading memory: userId={}, sessionId={}", request.getUserId(), request.getSessionId());
+        log.info("Reading memory: userId={}, sessionId={}, limit={}, includeLongTerm={}", 
+            request.getUserId(), request.getSessionId(), request.getLimit(), request.getIncludeLongTerm());
         
         int limit = request.getLimit() != null ? request.getLimit() : 10;
         boolean includeLongTerm = request.getIncludeLongTerm() == null || request.getIncludeLongTerm();
@@ -162,6 +165,9 @@ public class MemoryService {
             .totalCount(shortTermList.size())
             .data(buildMemoryData(shortTermList, longTermProfile))
             .build();
+        
+        log.info("Memory read: userId={}, shortTermCount={}, longTermProfile={}, data={}", 
+            userId, shortTermList.size(), longTermProfile, response.getData());
         
         return response;
     }

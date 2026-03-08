@@ -94,7 +94,9 @@ public class TestAgent implements SubAgent {
                 resultMono = mcpToolClient.createBatch(params);
                 break;
             case "addCasesToBatch":
-                resultMono = mcpToolClient.addCasesToBatch(params);
+                // 确保 caseIds 是列表格式
+                Map<String, Object> addCasesParams = convertCaseIdsToList(new java.util.HashMap<>(params));
+                resultMono = mcpToolClient.addCasesToBatch(addCasesParams);
                 break;
             case "executeBatch":
                 resultMono = mcpToolClient.executeBatch(params);
@@ -389,5 +391,53 @@ public class TestAgent implements SubAgent {
             log.error("Failed to read system prompt", e);
             return "你是一个测试管理助手。";
         }
+    }
+
+    /**
+     * 将 caseIds 转换为 List<String> 格式
+     */
+    private Map<String, Object> convertCaseIdsToList(Map<String, Object> params) {
+        if (params == null) {
+            return params;
+        }
+        
+        Object caseIds = params.get("caseIds");
+        if (caseIds == null) {
+            return params;
+        }
+        
+        // 如果已经是 List，直接返回
+        if (caseIds instanceof java.util.List) {
+            return params;
+        }
+        
+        // 如果是 String，转换为 List
+        if (caseIds instanceof String) {
+            String caseIdStr = (String) caseIds;
+            // 尝试解析 JSON 数组格式 ["case001", "case002"]
+            try {
+                if (caseIdStr.trim().startsWith("[")) {
+                    java.util.List<String> list = objectMapper.readValue(caseIdStr, 
+                        objectMapper.getTypeFactory().constructCollectionType(java.util.List.class, String.class));
+                    params.put("caseIds", list);
+                    log.info("[TestAgent] Converted caseIds from JSON array string to List: {}", list);
+                } else {
+                    // 单个案例 ID，包装成列表
+                    java.util.List<String> list = java.util.Collections.singletonList(caseIdStr);
+                    params.put("caseIds", list);
+                    log.info("[TestAgent] Converted single caseId to List: {}", list);
+                }
+            } catch (Exception e) {
+                // 解析失败，按逗号分割
+                java.util.List<String> list = java.util.Arrays.stream(caseIdStr.split("[,，]"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(java.util.stream.Collectors.toList());
+                params.put("caseIds", list);
+                log.info("[TestAgent] Converted caseIds by splitting: {}", list);
+            }
+        }
+        
+        return params;
     }
 }

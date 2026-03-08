@@ -232,8 +232,8 @@ public class McpToolClient {
         callTool("writeMemory", params)
             .subscribeOn(Schedulers.boundedElastic())
             .subscribe(
-                result -> log.info("Memory write success: {}", result),
-                error -> log.error("Memory write failed: {}", error.getMessage())
+                result -> log.info("Memory write success: params={}, result={}", params, result),
+                error -> log.error("Memory write failed: params={}, error={}", params, error.getMessage())
             );
     }
 

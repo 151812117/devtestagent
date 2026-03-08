@@ -3,6 +3,7 @@ package com.example.devtestagent.service;
 import com.example.devtestagent.agent.master.MasterAgent;
 import com.example.devtestagent.model.AgentResponse;
 import com.example.devtestagent.model.IntentParseResult;
+import com.example.devtestagent.model.MemoryContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -31,10 +32,10 @@ public class AgentService {
     /**
      * 第一轮：处理用户输入，进行意图解析
      */
-    public Mono<AgentResponse> processFirstRound(String userQuery, String userId, String sessionId) {
+    public Mono<AgentResponse> processFirstRound(String userQuery, String userId, String sessionId, MemoryContext memory) {
         log.info("[AgentService] First round - userQuery: {}, userId: {}", userQuery, userId);
 
-        return masterAgent.processIntentParse(userQuery, userId, sessionId)
+        return masterAgent.processIntentParse(userQuery, userId, sessionId, memory)
             .doOnNext(response -> {
                 // 缓存意图解析结果
                 if (response.getIntentResult() != null) {

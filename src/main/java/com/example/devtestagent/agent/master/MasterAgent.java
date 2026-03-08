@@ -50,31 +50,28 @@ public class MasterAgent {
     /**
      * 处理用户请求 - 第一阶段：意图解析
      */
-    public Mono<AgentResponse> processIntentParse(String userQuery, String userId, String sessionId) {
+    public Mono<AgentResponse> processIntentParse(String userQuery, String userId, String sessionId, MemoryContext memory) {
         String requestId = generateRequestId();
         log.info("[MasterAgent] Processing intent parse, requestId: {}, query: {}", requestId, userQuery);
+        log.info("[MasterAgent] Memory context: {}", memory);
 
-        // 1. 读取记忆
-        return memoryService.readMemory(userId, sessionId)
-            .flatMap(memory -> {
-                // 2. 进行任务规划
-                return planTask(userQuery, memory)
-                    .flatMap(taskPlan -> {
-                        log.info("[MasterAgent] Task plan: {}", taskPlan);
+        // 1. 进行任务规划（使用传入的记忆上下文）
+        return planTask(userQuery, memory)
+            .flatMap(taskPlan -> {
+                log.info("[MasterAgent] Task plan: {}", taskPlan);
 
-                        // 3. 构建子智能体请求
-                        AgentRequest subAgentRequest = AgentRequest.builder()
-                            .requestId(requestId)
-                            .userQuery(userQuery)
-                            .userId(userId)
-                            .sessionId(sessionId)
-                            .phase(AgentRequest.RequestPhase.INTENT_PARSE)
-                            .memory(formatMemory(memory))
-                            .build();
+                // 2. 构建子智能体请求
+                AgentRequest subAgentRequest = AgentRequest.builder()
+                    .requestId(requestId)
+                    .userQuery(userQuery)
+                    .userId(userId)
+                    .sessionId(sessionId)
+                    .phase(AgentRequest.RequestPhase.INTENT_PARSE)
+                    .memory(formatMemory(memory))
+                    .build();
 
-                        // 4. 路由到子智能体进行意图解析
-                        return routeToSubAgentForIntentParse(taskPlan, subAgentRequest);
-                    });
+                // 3. 路由到子智能体进行意图解析
+                return routeToSubAgentForIntentParse(taskPlan, subAgentRequest);
             })
             .map(intentResult -> AgentResponse.builder()
                 .responseId(generateRequestId())

@@ -1,5 +1,6 @@
 package com.example.devtestagent.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -7,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 记忆上下文
@@ -15,6 +17,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class MemoryContext {
     
     /**
@@ -46,6 +49,11 @@ public class MemoryContext {
      * 用户偏好
      */
     private UserPreference userPreference;
+    
+    /**
+     * 原始数据（MCP Server 返回的 data 字段）
+     */
+    private Map<String, Object> data;
     
     @Data
     @Builder

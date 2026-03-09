@@ -623,10 +623,9 @@
                 `;
             } else {
                 chips.innerHTML = `
-                    <span class="example-chip" onclick="setQuery('对 http://api.example.com 进行接口测试')">执行接口测试</span>
-                    <span class="example-chip" onclick="setQuery('执行Web界面自动化测试')">执行UI测试</span>
-                    <span class="example-chip" onclick="setQuery('分析测试ID为test-001的结果')">分析测试结果</span>
-                    <span class="example-chip" onclick="setQuery('生成测试报告')">生成测试报告</span>
+                    <span class="example-chip" onclick="setQuery('创建批次，系统名sys0001，系统编号0001')">创建批次</span>
+                    <span class="example-chip" onclick="setQuery('将case01添加到该批次')">将案例添加到批次</span>
+                    <span class="example-chip" onclick="setQuery('执行该批次')">执行批次</span>
                 `;
             }
         }
@@ -871,6 +870,30 @@
             scrollToBottom();
         }
 
+        // 参数中文名称映射
+        const paramNameMap = {
+            // 批次管理参数
+            'systemName': '被测系统名',
+            'systemCode': '被测系统编号',
+            'batchLabel': '批次标识',
+            'caseIds': '案例编号列表',
+            'batchId': '批次编号',
+            'executionId': '执行编号',
+            // 环境管理参数
+            'envType': '环境类型',
+            'duration': '使用时长（小时）',
+            'cpu': 'CPU核心数',
+            'memory': '内存大小（GB）',
+            'storage': '存储大小（GB）',
+            'instanceCount': '实例数量',
+            'purpose': '使用目的',
+            'owner': '申请人',
+            'envId': '环境ID',
+            'resourceId': '资源ID',
+            'recycleType': '回收类型',
+            'reason': '回收原因'
+        };
+
         // 渲染参数表单
         function renderParameterForm(intentResult) {
             const container = document.getElementById(`parameterFields_${currentRequestId}`);
@@ -903,7 +926,8 @@
                 row.className = 'form-row';
                 
                 const label = document.createElement('label');
-                label.textContent = descriptions[key] || key;
+                // 优先使用 descriptions，其次使用中文映射，最后使用原始 key
+                label.textContent = descriptions[key] || paramNameMap[key] || key;
                 
                 const input = document.createElement('input');
                 input.type = 'text';

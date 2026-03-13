@@ -44,6 +44,7 @@ public class TaskPlan {
     public enum TaskType {
         ENV_MANAGEMENT,
         TEST_EXECUTION,
+        MENU_RECOMMENDATION,
         UNKNOWN
     }
     

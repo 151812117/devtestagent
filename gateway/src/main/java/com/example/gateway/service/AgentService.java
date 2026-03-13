@@ -37,6 +37,7 @@ public class AgentService {
      * 1. 读取记忆
      * 2. 组装提示词（记忆+用户输入）
      * 3. 调用 Agent 的 chat 接口
+     * 4. 如果是菜单推荐类型，直接执行并返回结果（不需要参数确认）
      */
     public Mono<AgentResponse> processFirstRound(String userQuery, String userId, String sessionId) {
         log.info("[AgentService] First round - userQuery: {}, userId: {}", userQuery, userId);
@@ -55,12 +56,54 @@ public class AgentService {
                 // 3. 调用 Agent 的 chat 接口
                 return agentClient.chatIntentParse(userId, sessionId, requestId, queryWithMemory, memoryContent);
             })
-            .doOnNext(response -> {
-                // 缓存意图解析结果
+            .flatMap(response -> {
+                // 4. 检查是否是菜单推荐类型
+                if (response.getIntentResult() != null && isMenuRecommendation(response.getIntentResult())) {
+                    log.info("[AgentService] Menu recommendation detected, executing directly without confirmation");
+                    // 直接执行，不需要参数确认
+                    return executeMenuRecommendation(response, userId, sessionId, requestId, userQuery);
+                }
+                // 缓存意图解析结果（非菜单推荐类型需要第二轮确认）
                 if (response.getIntentResult() != null) {
                     intentCache.put(requestId, response.getIntentResult());
                     log.info("[AgentService] Cached intent result for request: {}", requestId);
                 }
+                return Mono.just(response);
+            });
+    }
+    
+    /**
+     * 判断是否是菜单推荐类型
+     */
+    private boolean isMenuRecommendation(AgentResponse.IntentParseResult intentResult) {
+        if (intentResult == null || intentResult.getAction() == null) {
+            return false;
+        }
+        String action = intentResult.getAction().toLowerCase();
+        return action.startsWith("recommendmenu") || action.startsWith("menurecommendation");
+    }
+    
+    /**
+     * 直接执行菜单推荐
+     */
+    private Mono<AgentResponse> executeMenuRecommendation(AgentResponse intentResponse, 
+                                                           String userId, String sessionId, 
+                                                           String requestId, String userQuery) {
+        AgentResponse.IntentParseResult intentResult = intentResponse.getIntentResult();
+        String action = intentResult.getAction();
+        Map<String, Object> parameters = intentResult.getParameters() != null ? 
+            intentResult.getParameters() : new java.util.HashMap<>();
+        
+        // 调用 Agent 执行
+        return agentClient.chatExecution(userId, sessionId, requestId, userQuery, action, parameters)
+            .map(execResponse -> {
+                // 构建最终响应 - 将执行结果包装成直接回答的形式
+                AgentResponse finalResponse = new AgentResponse();
+                finalResponse.setRequestId(requestId);
+                finalResponse.setType(AgentResponse.ResponseType.EXECUTION_RESULT);
+                finalResponse.setIntentResult(intentResult);
+                finalResponse.setExecutionResult(execResponse.getExecutionResult());
+                return finalResponse;
             });
     }
 

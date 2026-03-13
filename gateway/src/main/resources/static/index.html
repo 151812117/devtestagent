@@ -534,6 +534,7 @@
                         <div class="tab-buttons">
                             <button class="tab-btn active" onclick="switchTab('env', this)">环境管理</button>
                             <button class="tab-btn" onclick="switchTab('test', this)">测试执行</button>
+                            <button class="tab-btn" onclick="switchTab('menu', this)">菜单推荐</button>
                         </div>
                     </div>
 
@@ -621,11 +622,18 @@
                     <span class="example-chip" onclick="setQuery('回收开发环境 dev-001')">回收开发环境</span>
                     <span class="example-chip" onclick="setQuery('释放测试环境资源')">释放测试资源</span>
                 `;
-            } else {
+            } else if (tab === 'test') {
                 chips.innerHTML = `
                     <span class="example-chip" onclick="setQuery('创建批次，系统名sys0001，系统编号0001')">创建批次</span>
                     <span class="example-chip" onclick="setQuery('将case01添加到该批次')">将案例添加到批次</span>
                     <span class="example-chip" onclick="setQuery('执行该批次')">执行批次</span>
+                `;
+            } else if (tab === 'menu') {
+                chips.innerHTML = `
+                    <span class="example-chip" onclick="setQuery('我想创建测试批次，应该去哪里')">怎么创建批次</span>
+                    <span class="example-chip" onclick="setQuery('环境管理功能在哪')">环境管理入口</span>
+                    <span class="example-chip" onclick="setQuery('我想执行接口测试')">执行测试入口</span>
+                    <span class="example-chip" onclick="setQuery('查看测试报告')">查看报告</span>
                 `;
             }
         }
@@ -846,27 +854,93 @@
                 </div>
             `;
             
-            // 参数确认表单
-            html += `
-                <div class="parameter-form" id="parameterForm_${currentRequestId}">
-                    <h4>参数确认</h4>
-                    <div id="parameterFields_${currentRequestId}"></div>
-                    <div class="form-actions">
-                        <button class="btn btn-success" onclick="executeTask()">确认执行</button>
+            // 检查是否是菜单推荐类型
+            const isMenuRecommendation = intent.action && (intent.action.startsWith('recommendMenu') || intent.action.startsWith('menuRecommendation'));
+            
+            if (isMenuRecommendation) {
+                // 菜单推荐类型：直接显示推荐结果，不需要参数确认
+                html += `
+                    <div class="menu-recommendation-result" id="menuResult_${currentRequestId}">
+                        <div style="background: #e3f2fd; border-left: 3px solid #2196f3; padding: 12px; border-radius: 0 8px 8px 0; margin-top: 10px;">
+                            <h4 style="color: #1976d2; margin-bottom: 10px; font-size: 14px;">📋 为您推荐以下菜单</h4>
+                            <div id="menuRecommendation_${currentRequestId}"></div>
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
+                aiBody.innerHTML = html;
+                
+                // 打字机效果显示思考过程，然后显示推荐结果
+                const thinkContent = document.getElementById(`thinkContent_${currentRequestId}`);
+                const thinkText = intent.think || '正在分析您的需求...';
+                typewriterEffect(thinkContent, thinkText, 20, () => {
+                    renderMenuRecommendation(intent);
+                });
+            } else {
+                // 其他类型：显示参数确认表单
+                html += `
+                    <div class="parameter-form" id="parameterForm_${currentRequestId}">
+                        <h4>参数确认</h4>
+                        <div id="parameterFields_${currentRequestId}"></div>
+                        <div class="form-actions">
+                            <button class="btn btn-success" onclick="executeTask()">确认执行</button>
+                        </div>
+                    </div>
+                `;
+                aiBody.innerHTML = html;
+                
+                // 打字机效果显示思考过程
+                const thinkContent = document.getElementById(`thinkContent_${currentRequestId}`);
+                const thinkText = intent.think || '正在分析您的需求...';
+                typewriterEffect(thinkContent, thinkText, 20, () => {
+                    renderParameterForm(intent);
+                });
+            }
             
-            aiBody.innerHTML = html;
+            scrollToBottom();
+        }
+        
+        // 渲染菜单推荐结果
+        function renderMenuRecommendation(intentResult) {
+            const container = document.getElementById(`menuRecommendation_${currentRequestId}`);
+            if (!container) return;
             
-            // 打字机效果显示思考过程
-            const thinkContent = document.getElementById(`thinkContent_${currentRequestId}`);
-            const thinkText = intent.think || '正在分析您的需求...';
-            typewriterEffect(thinkContent, thinkText, 20, () => {
-                // 思考过程显示完成后渲染参数表单
-                renderParameterForm(intent);
+            const menuRecommendation = intentResult.parameters && intentResult.parameters.menuRecommendation;
+            if (!menuRecommendation || !menuRecommendation.recommendedMenus) {
+                container.innerHTML = '<div style="color: #666; font-size: 13px;">未找到匹配的菜单</div>';
+                return;
+            }
+            
+            let html = '';
+            const menus = menuRecommendation.recommendedMenus;
+            
+            if (menus.length === 0) {
+                container.innerHTML = '<div style="color: #666; font-size: 13px;">未找到匹配的菜单</div>';
+                return;
+            }
+            
+            html += '<ul style="list-style: none; padding: 0; margin: 0;">';
+            menus.forEach((menu, index) => {
+                const confidence = Math.round((menu.confidence || 0) * 100);
+                html += `
+                    <li style="padding: 8px 0; border-bottom: 1px solid #e0e0e0; ${index === menus.length - 1 ? 'border-bottom: none;' : ''}">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 500; color: #333; font-size: 13px;">${menu.path || '未知菜单'}</span>
+                            <span style="background: ${confidence >= 80 ? '#4caf50' : confidence >= 50 ? '#ff9800' : '#9e9e9e'}; 
+                                         color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px;">
+                                ${confidence}% 匹配
+                            </span>
+                        </div>
+                        <div style="color: #666; font-size: 12px; margin-top: 4px;">${menu.description || ''}</div>
+                    </li>
+                `;
             });
+            html += '</ul>';
             
+            if (menuRecommendation.reason) {
+                html += `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e0e0e0; color: #666; font-size: 12px; font-style: italic;">💡 ${menuRecommendation.reason}</div>`;
+            }
+            
+            container.innerHTML = html;
             scrollToBottom();
         }
 
@@ -891,7 +965,14 @@
             'envId': '环境ID',
             'resourceId': '资源ID',
             'recycleType': '回收类型',
-            'reason': '回收原因'
+            'reason': '回收原因',
+            // 菜单推荐参数
+            'targetMenu': '目标菜单',
+            'menuCategory': '菜单分类',
+            'requirementDetail': '需求详情',
+            'recommendedMenus': '推荐菜单',
+            'menuPath': '菜单路径',
+            'confidence': '置信度'
         };
 
         // 渲染参数表单

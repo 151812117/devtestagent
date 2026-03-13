@@ -26,6 +26,9 @@ public class AppConfig {
     @Value("classpath:/prompts/test-agent-system-prompt.txt")
     private Resource testAgentSystemPrompt;
 
+    @Value("classpath:/prompts/menu-recommendation-system-prompt.txt")
+    private Resource menuRecommendationSystemPrompt;
+
     @Value("${llm.api.key:}")
     private String apiKey;
 
@@ -64,5 +67,10 @@ public class AppConfig {
     @Bean(name = "testAgentSystemPrompt")
     public Resource testAgentSystemPrompt() {
         return testAgentSystemPrompt;
+    }
+
+    @Bean(name = "menuRecommendationSystemPrompt")
+    public Resource menuRecommendationSystemPrompt() {
+        return menuRecommendationSystemPrompt;
     }
 }

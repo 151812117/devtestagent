@@ -1,6 +1,7 @@
 package com.example.agent.agent.master;
 
 import com.example.agent.agent.sub.EnvManagementAgent;
+import com.example.agent.agent.sub.MenuRecommendationAgent;
 import com.example.agent.agent.sub.TestAgent;
 import com.example.agent.model.*;
 import com.example.agent.service.LlmService;
@@ -25,6 +26,7 @@ public class MasterAgent {
     private final LlmService llmService;
     private final EnvManagementAgent envManagementAgent;
     private final TestAgent testAgent;
+    private final MenuRecommendationAgent menuRecommendationAgent;
     private final ObjectMapper objectMapper;
     private final Resource systemPrompt;
 
@@ -32,11 +34,13 @@ public class MasterAgent {
             LlmService llmService,
             EnvManagementAgent envManagementAgent,
             TestAgent testAgent,
+            MenuRecommendationAgent menuRecommendationAgent,
             ObjectMapper objectMapper,
             @Qualifier("masterAgentSystemPrompt") Resource systemPrompt) {
         this.llmService = llmService;
         this.envManagementAgent = envManagementAgent;
         this.testAgent = testAgent;
+        this.menuRecommendationAgent = menuRecommendationAgent;
         this.objectMapper = objectMapper;
         this.systemPrompt = systemPrompt;
     }
@@ -96,12 +100,13 @@ public class MasterAgent {
 
         prompt.append("可用的子智能体：\n");
         prompt.append("- EnvManagementAgent: 环境管理（申请/回收环境资源）\n");
-        prompt.append("- TestAgent: 测试执行（创建批次、添加案例、执行测试、结果分析）\n\n");
+        prompt.append("- TestAgent: 测试执行（创建批次、添加案例、执行测试、结果分析）\n");
+        prompt.append("- MenuRecommendationAgent: 菜单推荐（帮助用户找到合适的系统功能菜单）\n\n");
         
         prompt.append("请根据用户输入，以 JSON 格式返回任务规划结果：\n");
         prompt.append("{\n");
-        prompt.append("  \"taskType\": \"ENV_MANAGEMENT 或 TEST_EXECUTION\",\n");
-        prompt.append("  \"targetAgent\": \"EnvManagementAgent 或 TestAgent\",\n");
+        prompt.append("  \"taskType\": \"ENV_MANAGEMENT 或 TEST_EXECUTION 或 MENU_RECOMMENDATION\",\n");
+        prompt.append("  \"targetAgent\": \"EnvManagementAgent 或 TestAgent 或 MenuRecommendationAgent\",\n");
         prompt.append("  \"description\": \"任务描述\",\n");
         prompt.append("  \"needConfirmation\": true\n");
         prompt.append("}\n");
@@ -158,7 +163,13 @@ public class MasterAgent {
     private TaskPlan.TaskType fallbackTaskType(String userQuery) {
         String lowerQuery = userQuery.toLowerCase();
         
-        if (lowerQuery.contains("环境") || lowerQuery.contains("资源") || 
+        // 菜单推荐关键词
+        if (lowerQuery.contains("菜单") || lowerQuery.contains("推荐") || 
+            lowerQuery.contains("功能") || lowerQuery.contains("入口") ||
+            lowerQuery.contains("在哪") || lowerQuery.contains("怎么") ||
+            lowerQuery.contains("如何") || lowerQuery.contains("哪里")) {
+            return TaskPlan.TaskType.MENU_RECOMMENDATION;
+        } else if (lowerQuery.contains("环境") || lowerQuery.contains("资源") || 
             lowerQuery.contains("申请") || lowerQuery.contains("回收") ||
             lowerQuery.contains("env") || lowerQuery.contains("resource")) {
             return TaskPlan.TaskType.ENV_MANAGEMENT;
@@ -172,14 +183,19 @@ public class MasterAgent {
     }
 
     private String fallbackTargetAgent(String userQuery, TaskPlan.TaskType taskType) {
-        if (taskType == TaskPlan.TaskType.ENV_MANAGEMENT) {
+        if (taskType == TaskPlan.TaskType.MENU_RECOMMENDATION) {
+            return "MenuRecommendationAgent";
+        } else if (taskType == TaskPlan.TaskType.ENV_MANAGEMENT) {
             return "EnvManagementAgent";
         } else if (taskType == TaskPlan.TaskType.TEST_EXECUTION) {
             return "TestAgent";
         }
         
         String lowerQuery = userQuery.toLowerCase();
-        if (lowerQuery.contains("环境") || lowerQuery.contains("资源")) {
+        if (lowerQuery.contains("菜单") || lowerQuery.contains("推荐") ||
+            lowerQuery.contains("在哪") || lowerQuery.contains("怎么")) {
+            return "MenuRecommendationAgent";
+        } else if (lowerQuery.contains("环境") || lowerQuery.contains("资源")) {
             return "EnvManagementAgent";
         }
         return "TestAgent";
@@ -203,6 +219,8 @@ public class MasterAgent {
                 return envManagementAgent.parseIntent(request);
             case TEST_EXECUTION:
                 return testAgent.parseIntent(request);
+            case MENU_RECOMMENDATION:
+                return menuRecommendationAgent.parseIntent(request);
             default:
                 return Mono.error(new IllegalArgumentException("Unknown task type: " + taskPlan.getTaskType()));
         }
@@ -215,6 +233,8 @@ public class MasterAgent {
                    action.startsWith("createBatch") || action.startsWith("addCasesToBatch") ||
                    action.startsWith("executeBatch") || action.startsWith("analyzeBatchResult")) {
             return testAgent.execute(request);
+        } else if (action.startsWith("recommendMenu") || action.startsWith("menuRecommendation")) {
+            return menuRecommendationAgent.execute(request);
         } else {
             return Mono.error(new IllegalArgumentException("Unknown action: " + action));
         }

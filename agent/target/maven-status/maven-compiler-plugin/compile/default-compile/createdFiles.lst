@@ -4,6 +4,7 @@ com\example\agent\agent\sub\TestAgent$1.class
 com\example\agent\model\ChatRequest.class
 com\example\agent\model\TaskPlan.class
 com\example\agent\config\AppConfig.class
+com\example\agent\agent\sub\MenuRecommendationAgent$MenuInfo.class
 com\example\agent\controller\ChatController.class
 com\example\agent\service\ChatService.class
 com\example\agent\model\AgentResponse$ExecutionResult$ExecutionResultBuilder.class
@@ -11,6 +12,7 @@ com\example\agent\model\AgentRequest$RequestPhase.class
 com\example\agent\model\ExecutionResult.class
 com\example\agent\model\AgentResponse$ExecutionResult.class
 com\example\agent\model\MemoryContext$UserPreference$UserPreferenceBuilder.class
+com\example\agent\agent\sub\MenuRecommendationAgent$1.class
 com\example\agent\model\TaskPlan$SubTask$SubTaskBuilder.class
 com\example\agent\agent\master\MasterAgent$1.class
 com\example\agent\agent\sub\EnvManagementAgent$1.class
@@ -30,12 +32,14 @@ com\example\agent\model\AgentRequest.class
 com\example\agent\model\TaskPlan$TaskType.class
 com\example\agent\model\ChatResponse$IntentParseResult$IntentParseResultBuilder.class
 com\example\agent\model\AgentResponse$ResponseType.class
+com\example\agent\agent\sub\MenuRecommendationAgent.class
 com\example\agent\agent\sub\SubAgent.class
 com\example\agent\model\AgentResponse$AgentResponseBuilder.class
 com\example\agent\agent\master\MasterAgent.class
 com\example\agent\model\AgentResponse.class
 com\example\agent\agent\sub\EnvManagementAgent$2.class
 com\example\agent\model\ExecutionResult$ExecutionResultBuilder.class
+com\example\agent\agent\sub\MenuRecommendationAgent$2.class
 com\example\agent\AgentApplication.class
 com\example\agent\model\MemoryContext.class
 com\example\agent\agent\sub\TestAgent$2.class
@@ -44,6 +48,7 @@ com\example\agent\model\IntentParseResult$IntentParseResultBuilder.class
 com\example\agent\model\MemoryContext$UserPreference.class
 com\example\agent\model\ChatResponse$ExecutionResult$ExecutionResultBuilder.class
 com\example\agent\agent\sub\TestAgent.class
+com\example\agent\agent\sub\MenuRecommendationAgent$3.class
 com\example\agent\model\ChatRequest$ChatRequestBuilder.class
 com\example\agent\agent\sub\EnvManagementAgent$3.class
 com\example\agent\service\LlmService$Message.class

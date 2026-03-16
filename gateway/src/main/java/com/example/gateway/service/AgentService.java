@@ -3,9 +3,12 @@ package com.example.gateway.service;
 import com.example.gateway.client.AgentClient;
 import com.example.gateway.client.MemoryClient;
 import com.example.gateway.model.AgentResponse;
+import com.example.gateway.model.ChatStreamEvent;
 import com.example.gateway.model.MemoryContext;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
@@ -70,6 +73,113 @@ public class AgentService {
                 }
                 return Mono.just(response);
             });
+    }
+
+    /**
+     * 第一轮：流式处理用户输入，进行意图解析
+     */
+    public Flux<ChatStreamEvent> processFirstRoundStream(String userQuery, String userId, String sessionId) {
+        log.info("[AgentService] First round stream - userQuery: {}, userId: {}", userQuery, userId);
+        
+        String requestId = generateRequestId();
+
+        return memoryClient.readMemory(userId, sessionId)
+            .flatMapMany(memory -> {
+                // 组装带记忆上下文的提示词
+                String memoryContent = formatMemoryContent(userQuery, memory);
+                String queryWithMemory = buildQueryWithMemory(userQuery, memoryContent);
+                
+                log.info("[AgentService] Query with memory (stream): {}", queryWithMemory);
+                
+                // 调用 Agent 的 chat 流式接口
+                return agentClient.chatIntentParseStream(userId, sessionId, requestId, queryWithMemory, memoryContent)
+                    .map(ServerSentEvent::data)
+                    .doOnNext(event -> {
+                        // 缓存意图解析结果（非菜单推荐类型需要第二轮确认）
+                        if (event.getEventType() == ChatStreamEvent.EventType.INTENT_PARSE_RESULT) {
+                            Object data = event.getData();
+                            AgentResponse.IntentParseResult intentResult = extractIntentResultFromData(data);
+                            if (intentResult != null) {
+                                intentCache.put(requestId, intentResult);
+                                log.info("[AgentService] Cached intent result for stream request: {}", requestId);
+                            }
+                        }
+                    });
+            });
+    }
+
+    /**
+     * 从数据中提取意图解析结果
+     * 支持多种数据类型（AgentResponse、Map等）
+     */
+    @SuppressWarnings("unchecked")
+    private AgentResponse.IntentParseResult extractIntentResultFromData(Object data) {
+        if (data == null) {
+            return null;
+        }
+        
+        // 如果已经是 AgentResponse 类型
+        if (data instanceof AgentResponse) {
+            return ((AgentResponse) data).getIntentResult();
+        }
+        
+        // 如果是 Map 类型（JSON 反序列化后的默认类型）
+        if (data instanceof java.util.Map) {
+            java.util.Map<String, Object> map = (java.util.Map<String, Object>) data;
+            Object intentResultObj = map.get("intentResult");
+            if (intentResultObj != null) {
+                return convertToIntentParseResult(intentResultObj);
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * 将 Map 或其他对象转换为 IntentParseResult
+     */
+    @SuppressWarnings("unchecked")
+    private AgentResponse.IntentParseResult convertToIntentParseResult(Object obj) {
+        if (obj == null) {
+            return null;
+        }
+        
+        if (obj instanceof AgentResponse.IntentParseResult) {
+            return (AgentResponse.IntentParseResult) obj;
+        }
+        
+        if (obj instanceof java.util.Map) {
+            java.util.Map<String, Object> map = (java.util.Map<String, Object>) obj;
+            AgentResponse.IntentParseResult result = new AgentResponse.IntentParseResult();
+            result.setAction(getStringValue(map, "action"));
+            result.setTarget(getStringValue(map, "target"));
+            result.setThink(getStringValue(map, "think"));
+            result.setConfirmationMessage(getStringValue(map, "confirmationMessage"));
+            
+            // 处理 parameters
+            Object paramsObj = map.get("parameters");
+            if (paramsObj instanceof java.util.Map) {
+                result.setParameters((java.util.Map<String, Object>) paramsObj);
+            }
+            
+            // 处理 missingParameters
+            Object missingParamsObj = map.get("missingParameters");
+            if (missingParamsObj instanceof java.util.Map) {
+                result.setMissingParameters((java.util.Map<String, String>) missingParamsObj);
+            }
+            
+            return result;
+        }
+        
+        return null;
+    }
+
+    /**
+     * 从 Map 中安全获取字符串值
+     */
+    private String getStringValue(java.util.Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        return value != null ? value.toString() : null;
     }
     
     /**
@@ -141,6 +251,43 @@ public class AgentService {
                 // 写入记忆
                 if (response.getExecutionResult() != null) {
                     recordExecutionResult(userId, sessionId, action, confirmedParameters, response.getExecutionResult());
+                }
+            });
+    }
+
+    /**
+     * 第二轮：流式执行确认后的任务
+     */
+    public Flux<ChatStreamEvent> processSecondRoundStream(String requestId, String userQuery,
+                                                           Map<String, Object> confirmedParameters,
+                                                           String userId, String sessionId) {
+        log.info("[AgentService] Second round stream - requestId: {}, userId: {}", requestId, userId);
+
+        // 从缓存获取原始意图解析结果
+        AgentResponse.IntentParseResult originalIntent = intentCache.get(requestId);
+        if (originalIntent == null) {
+            return Flux.error(new IllegalStateException("Intent parse result not found for request: " + requestId));
+        }
+
+        // 使用用户确认后的参数，并加入 action
+        Map<String, Object> paramsWithAction = new java.util.HashMap<>();
+        if (confirmedParameters != null) {
+            paramsWithAction.putAll(confirmedParameters);
+        }
+        String action = originalIntent.getAction() != null ? originalIntent.getAction().trim() : "";
+        paramsWithAction.put("action", action);
+        
+        log.info("[AgentService] Executing with action (stream): '{}'", action);
+
+        // 调用 Agent 的 chat 流式接口执行
+        return agentClient.chatExecutionStream(userId, sessionId, requestId, userQuery, action, paramsWithAction)
+            .map(ServerSentEvent::data)
+            .doOnNext(event -> {
+                // 如果是执行结果事件，清除缓存并记录
+                if (event.getEventType() == ChatStreamEvent.EventType.EXECUTION_RESULT ||
+                    event.getEventType() == ChatStreamEvent.EventType.COMPLETE) {
+                    intentCache.remove(requestId);
+                    log.info("[AgentService] Execution stream completed for request: {}", requestId);
                 }
             });
     }

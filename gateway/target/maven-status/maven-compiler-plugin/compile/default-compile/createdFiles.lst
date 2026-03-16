@@ -3,11 +3,15 @@ com\example\gateway\model\AgentResponse$ExecutionResult.class
 com\example\gateway\controller\AgentController$ExecuteRequest.class
 com\example\gateway\model\MemoryContext$UserPreference.class
 com\example\gateway\model\AgentResponse$ExecutionResult$ExecutionResultBuilder.class
+com\example\gateway\model\ChatStreamEvent$ChatStreamEventBuilder.class
+com\example\gateway\client\AgentClient$1.class
 com\example\gateway\model\AgentResponse$ResponseType.class
 com\example\gateway\service\AgentService$1.class
 com\example\gateway\GatewayApplication.class
 com\example\gateway\model\MemoryContext$MemoryEntry$MemoryEntryBuilder.class
+com\example\gateway\model\ChatStreamEvent$EventType.class
 com\example\gateway\model\MemoryContext$UserPreference$UserPreferenceBuilder.class
+com\example\gateway\model\ChatStreamEvent.class
 com\example\gateway\service\AgentService.class
 com\example\gateway\client\MemoryClient.class
 com\example\gateway\controller\AgentController.class

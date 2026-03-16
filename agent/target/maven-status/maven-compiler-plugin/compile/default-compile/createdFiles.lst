@@ -14,12 +14,14 @@ com\example\agent\model\AgentResponse$ExecutionResult.class
 com\example\agent\model\MemoryContext$UserPreference$UserPreferenceBuilder.class
 com\example\agent\agent\sub\MenuRecommendationAgent$1.class
 com\example\agent\model\TaskPlan$SubTask$SubTaskBuilder.class
+com\example\agent\model\ChatStreamEvent.class
 com\example\agent\agent\master\MasterAgent$1.class
 com\example\agent\agent\sub\EnvManagementAgent$1.class
 com\example\agent\model\TaskPlan$TaskPlanBuilder.class
 com\example\agent\mcp\MemoryService.class
 com\example\agent\model\AgentRequest$AgentRequestBuilder.class
 com\example\agent\agent\sub\TestAgent$3.class
+com\example\agent\model\ChatStreamEvent$ChatStreamEventBuilder.class
 com\example\agent\model\IntentParseResult.class
 com\example\agent\model\ChatResponse$ExecutionResult.class
 com\example\agent\model\MemoryContext$MemoryContextBuilder.class
@@ -46,6 +48,7 @@ com\example\agent\agent\sub\TestAgent$2.class
 com\example\agent\model\ChatResponse$IntentParseResult.class
 com\example\agent\model\IntentParseResult$IntentParseResultBuilder.class
 com\example\agent\model\MemoryContext$UserPreference.class
+com\example\agent\model\ChatStreamEvent$EventType.class
 com\example\agent\model\ChatResponse$ExecutionResult$ExecutionResultBuilder.class
 com\example\agent\agent\sub\TestAgent.class
 com\example\agent\agent\sub\MenuRecommendationAgent$3.class

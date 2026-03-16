@@ -1,14 +1,19 @@
 package com.example.gateway.controller;
 
 import com.example.gateway.model.AgentResponse;
+import com.example.gateway.model.ChatStreamEvent;
 import com.example.gateway.service.AgentService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 智能体控制器（网关层）
@@ -78,6 +83,125 @@ public class AgentController {
     }
 
     /**
+     * 第一轮交互：意图解析（SSE 流式）
+     * POST /api/agent/intent/stream
+     */
+    @PostMapping(value = "/intent/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<ChatStreamEvent>> parseIntentStream(@RequestBody IntentRequest request) {
+        log.info("[Gateway] Intent parse stream request: {}", request.getQuery());
+
+        String sessionId = request.getSessionId() != null ? 
+            request.getSessionId() : agentService.generateSessionId();
+
+        // 发送开始事件
+        ServerSentEvent<ChatStreamEvent> startEvent = ServerSentEvent.<ChatStreamEvent>builder()
+            .id(generateEventId())
+            .event("start")
+            .data(ChatStreamEvent.builder()
+                .eventType(ChatStreamEvent.EventType.START)
+                .data("Processing intent parse request")
+                .build())
+            .build();
+
+        // 调用流式服务
+        Flux<ServerSentEvent<ChatStreamEvent>> processFlux = agentService.processFirstRoundStream(
+                request.getQuery(),
+                request.getUserId(),
+                sessionId
+            )
+            .map(event -> ServerSentEvent.<ChatStreamEvent>builder()
+                .id(generateEventId())
+                .event(event.getEventType().name().toLowerCase())
+                .data(event)
+                .build());
+
+        // 发送完成事件
+        ServerSentEvent<ChatStreamEvent> completeEvent = ServerSentEvent.<ChatStreamEvent>builder()
+            .id(generateEventId())
+            .event("complete")
+            .data(ChatStreamEvent.builder()
+                .eventType(ChatStreamEvent.EventType.COMPLETE)
+                .data("Intent parse completed")
+                .build())
+            .build();
+
+        return Flux.concat(
+            Flux.just(startEvent),
+            processFlux,
+            Flux.just(completeEvent)
+        ).onErrorResume(error -> {
+            log.error("[Gateway] Intent parse stream error: {}", error.getMessage());
+            return Flux.just(ServerSentEvent.<ChatStreamEvent>builder()
+                .id(generateEventId())
+                .event("error")
+                .data(ChatStreamEvent.builder()
+                    .eventType(ChatStreamEvent.EventType.ERROR)
+                    .errorMessage(error.getMessage())
+                    .build())
+                .build());
+        });
+    }
+
+    /**
+     * 第二轮交互：执行确认后的任务（SSE 流式）
+     * POST /api/agent/execute/stream
+     */
+    @PostMapping(value = "/execute/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<ChatStreamEvent>> executeTaskStream(@RequestBody ExecuteRequest request) {
+        log.info("[Gateway] Execute stream request: {}", request.getRequestId());
+
+        // 发送开始事件
+        ServerSentEvent<ChatStreamEvent> startEvent = ServerSentEvent.<ChatStreamEvent>builder()
+            .id(generateEventId())
+            .event("start")
+            .data(ChatStreamEvent.builder()
+                .eventType(ChatStreamEvent.EventType.START)
+                .data("Processing execution request")
+                .build())
+            .build();
+
+        // 调用流式服务
+        Flux<ServerSentEvent<ChatStreamEvent>> processFlux = agentService.processSecondRoundStream(
+                request.getRequestId(),
+                request.getQuery(),
+                request.getParameters(),
+                request.getUserId(),
+                request.getSessionId()
+            )
+            .map(event -> ServerSentEvent.<ChatStreamEvent>builder()
+                .id(generateEventId())
+                .event(event.getEventType().name().toLowerCase())
+                .data(event)
+                .build());
+
+        // 发送完成事件
+        ServerSentEvent<ChatStreamEvent> completeEvent = ServerSentEvent.<ChatStreamEvent>builder()
+            .id(generateEventId())
+            .event("complete")
+            .data(ChatStreamEvent.builder()
+                .eventType(ChatStreamEvent.EventType.COMPLETE)
+                .data("Execution completed")
+                .build())
+            .build();
+
+        return Flux.concat(
+            Flux.just(startEvent),
+            processFlux,
+            Flux.just(completeEvent)
+        ).onErrorResume(error -> {
+            log.error("[Gateway] Execute stream error: {}", error.getMessage());
+            return Flux.just(ServerSentEvent.<ChatStreamEvent>builder()
+                .id(generateEventId())
+                .event("error")
+                .data(ChatStreamEvent.builder()
+                    .eventType(ChatStreamEvent.EventType.ERROR)
+                    .errorMessage(error.getMessage())
+                    .build())
+                .build());
+        });
+    }
+
+    /**
      * 获取缓存的意图解析结果
      * GET /api/agent/intent/{requestId}
      */
@@ -115,5 +239,9 @@ public class AgentController {
         private String userId;
         private String sessionId;
         private Map<String, Object> parameters;
+    }
+
+    private String generateEventId() {
+        return String.valueOf(System.currentTimeMillis()) + "_" + UUID.randomUUID().toString().substring(0, 8);
     }
 }

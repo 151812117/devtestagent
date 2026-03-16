@@ -131,20 +131,20 @@ public class MenuRecommendationAgent implements SubAgent {
             prompt.append("历史记忆：\n").append(request.getMemory()).append("\n\n");
         }
 
-        prompt.append("可用的菜单分类：\n");
-        prompt.append("1. 接口测试 - 包括：创建批次、添加案例到批次、执行批次、分析执行结果\n");
-        prompt.append("2. 环境管理 - 包括：申请资源、回收资源、查看资源状态、资源续期\n");
-        prompt.append("3. 测试管理 - 包括：创建测试计划、测试用例库、测试报告\n\n");
+        // prompt.append("可用的菜单分类：\n");
+        // prompt.append("1. 接口测试 - 包括：创建批次、添加案例到批次、执行批次、分析执行结果\n");
+        // prompt.append("2. 环境管理 - 包括：申请资源、回收资源、查看资源状态、资源续期\n");
+        // prompt.append("3. 测试管理 - 包括：创建测试计划、测试用例库、测试报告\n\n");
         
-        prompt.append("请以 JSON 格式返回解析结果，包含以下字段：\n");
-        prompt.append("- action: 操作类型（recommendMenu）\n");
-        prompt.append("- target: 推荐的目标菜单路径（如：接口测试->创建批次）\n");
-        prompt.append("- parameters: 提取的参数\n");
-        prompt.append("- menuRecommendation: 菜单推荐详情对象，包含：\n");
-        prompt.append("  - recommendedMenus: 推荐的菜单列表，每个菜单包含 path（路径）、description（描述）、confidence（置信度 0-1）\n");
-        prompt.append("  - reason: 推荐理由\n");
-        prompt.append("- think: 你的思考过程\n");
-        prompt.append("- missingParameters: 需要补充的参数名和说明\n");
+        // prompt.append("请以 JSON 格式返回解析结果，包含以下字段：\n");
+        // prompt.append("- action: 操作类型（recommendMenu）\n");
+        // prompt.append("- target: 推荐的目标菜单路径（如：接口测试->创建批次）\n");
+        // prompt.append("- parameters: 提取的参数\n");
+        // prompt.append("- menuRecommendation: 菜单推荐详情对象，包含：\n");
+        // prompt.append("  - recommendedMenus: 推荐的菜单列表，每个菜单包含 path（路径）、description（描述）、confidence（置信度 0-1）\n");
+        // prompt.append("  - reason: 推荐理由\n");
+        // prompt.append("- think: 你的思考过程\n");
+        // prompt.append("- missingParameters: 需要补充的参数名和说明\n");
 
         return prompt.toString();
     }
@@ -272,32 +272,199 @@ public class MenuRecommendationAgent implements SubAgent {
     }
 
     /**
-     * 计算匹配置信度
+     * 计算匹配置信度 - 采用多维度语义相似度计算
+     * 
+     * 业界常用方法：
+     * 1. TF-IDF + 余弦相似度：适用于文档级别的语义匹配
+     * 2. Jaccard 相似度：计算集合的交集比例
+     * 3. Edit Distance：处理错别字和拼写变体
+     * 4. 深度语义模型（BERT/Sentence-BERT）：捕捉深层语义关系
+     * 
+     * 本实现采用轻量级的多特征融合方法，平衡准确性和性能
      */
     private double calculateConfidence(String query, MenuInfo menu) {
-        double confidence = 0.0;
+        String lowerQuery = query.toLowerCase();
+        String menuPath = menu.path.toLowerCase();
         
-        // 检查菜单路径匹配
-        if (query.contains(menu.path.toLowerCase().replace("->", ""))) {
-            confidence += 0.5;
-        }
+        // 1. 精确匹配分数 (权重 0.4)
+        double exactMatchScore = calculateExactMatchScore(lowerQuery, menuPath, menu.keywords);
         
-        // 检查关键词匹配
-        for (String keyword : menu.keywords) {
-            if (query.contains(keyword.toLowerCase())) {
-                confidence += 0.3;
-            }
-        }
+        // 2. Jaccard 相似度 - 基于词集合的重叠度 (权重 0.3)
+        double jaccardScore = calculateJaccardSimilarity(lowerQuery, menuPath + " " + menu.description);
         
-        // 检查描述匹配（简单分词匹配）
-        String[] descWords = menu.description.toLowerCase().split("");
-        for (String word : descWords) {
-            if (word.length() > 1 && query.contains(word)) {
-                confidence += 0.1;
-            }
-        }
+        // 3. 关键词覆盖度 (权重 0.2)
+        double keywordCoverageScore = calculateKeywordCoverage(lowerQuery, menu.keywords);
+        
+        // 4. 编辑距离相似度 - 处理错别字和变体 (权重 0.1)
+        double editDistanceScore = calculateEditDistanceScore(lowerQuery, menuPath);
+        
+        // 加权融合
+        double confidence = exactMatchScore * 0.4 
+                          + jaccardScore * 0.3 
+                          + keywordCoverageScore * 0.2 
+                          + editDistanceScore * 0.1;
         
         return Math.min(confidence, 1.0);
+    }
+    
+    /**
+     * 精确匹配分数
+     * 检查用户输入是否包含菜单路径或核心关键词组合
+     */
+    private double calculateExactMatchScore(String query, String menuPath, List<String> keywords) {
+        // 完整路径匹配（去掉箭头）
+        String simplifiedPath = menuPath.replace("->", "").replace(" ", "");
+        String simplifiedQuery = query.replace(" ", "");
+        
+        if (simplifiedQuery.contains(simplifiedPath)) {
+            return 1.0;
+        }
+        
+        // 核心动作+对象匹配（如"创建"+"批次"）
+        int coreMatchCount = 0;
+        for (String keyword : keywords) {
+            // 提取核心词（去掉常用词）
+            String coreWord = extractCoreWord(keyword);
+            if (coreWord.length() >= 2 && query.contains(coreWord)) {
+                coreMatchCount++;
+            }
+        }
+        
+        // 核心词匹配越多，分数越高
+        if (coreMatchCount >= 2) return 0.8;
+        if (coreMatchCount == 1) return 0.5;
+        return 0.0;
+    }
+    
+    /**
+     * Jaccard 相似度 - 计算两个集合的交集/并集比例
+     * 业界标准方法，适用于快速估算文本相似度
+     */
+    private double calculateJaccardSimilarity(String query, String target) {
+        Set<String> queryWords = tokenize(query);
+        Set<String> targetWords = tokenize(target);
+        
+        if (queryWords.isEmpty() || targetWords.isEmpty()) {
+            return 0.0;
+        }
+        
+        // 计算交集和并集
+        Set<String> intersection = new HashSet<>(queryWords);
+        intersection.retainAll(targetWords);
+        
+        Set<String> union = new HashSet<>(queryWords);
+        union.addAll(targetWords);
+        
+        return (double) intersection.size() / union.size();
+    }
+    
+    /**
+     * 关键词覆盖度 - 考虑 TF（词频）权重
+     */
+    private double calculateKeywordCoverage(String query, List<String> keywords) {
+        if (keywords.isEmpty()) return 0.0;
+        
+        double totalWeight = 0;
+        double matchedWeight = 0;
+        
+        for (String keyword : keywords) {
+            // 越长、越具体的关键词权重越高
+            double weight = Math.min(keyword.length() / 2.0, 3.0);
+            totalWeight += weight;
+            
+            if (query.contains(keyword.toLowerCase())) {
+                matchedWeight += weight;
+            }
+        }
+        
+        return totalWeight > 0 ? matchedWeight / totalWeight : 0.0;
+    }
+    
+    /**
+     * 编辑距离相似度 - 使用 Levenshtein 距离的变种
+     * 用于处理错别字、拼音近似等情况
+     */
+    private double calculateEditDistanceScore(String query, String menuPath) {
+        String[] queryWords = query.split("\\s+");
+        String[] pathWords = menuPath.split("->");
+        
+        double maxSimilarity = 0.0;
+        
+        for (String qw : queryWords) {
+            if (qw.length() < 2) continue; // 忽略单字
+            
+            for (String pw : pathWords) {
+                // 归一化编辑距离
+                double similarity = 1.0 - (double) levenshteinDistance(qw, pw) / Math.max(qw.length(), pw.length());
+                maxSimilarity = Math.max(maxSimilarity, similarity);
+            }
+        }
+        
+        // 只有当相似度很高时才给分（避免噪声）
+        return maxSimilarity > 0.7 ? maxSimilarity : 0.0;
+    }
+    
+    /**
+     * Levenshtein 编辑距离计算
+     */
+    private int levenshteinDistance(String s1, String s2) {
+        int[][] dp = new int[s1.length() + 1][s2.length() + 1];
+        
+        for (int i = 0; i <= s1.length(); i++) dp[i][0] = i;
+        for (int j = 0; j <= s2.length(); j++) dp[0][j] = j;
+        
+        for (int i = 1; i <= s1.length(); i++) {
+            for (int j = 1; j <= s2.length(); j++) {
+                if (s1.charAt(i - 1) == s2.charAt(j - 1)) {
+                    dp[i][j] = dp[i - 1][j - 1];
+                } else {
+                    dp[i][j] = 1 + Math.min(dp[i - 1][j - 1], 
+                                  Math.min(dp[i - 1][j], dp[i][j - 1]));
+                }
+            }
+        }
+        
+        return dp[s1.length()][s2.length()];
+    }
+    
+    /**
+     * 中文分词 - 简单实现，使用2-gram和单字混合
+     * 业界更优方案：使用 HanLP、jieba 等专业分词工具
+     */
+    private Set<String> tokenize(String text) {
+        Set<String> tokens = new HashSet<>();
+        text = text.toLowerCase().replaceAll("[^\\u4e00-\\u9fa5a-z0-9]", "");
+        
+        // 2-gram
+        for (int i = 0; i < text.length() - 1; i++) {
+            tokens.add(text.substring(i, i + 2));
+        }
+        
+        // 单字（只加入有意义的字）
+        for (char c : text.toCharArray()) {
+            if (c >= 0x4e00 && c <= 0x9fa5) { // 中文字符
+                tokens.add(String.valueOf(c));
+            }
+        }
+        
+        return tokens;
+    }
+    
+    /**
+     * 提取核心词 - 去掉常用停用词
+     */
+    private String extractCoreWord(String word) {
+        Set<String> stopWords = Set.of("的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一", "一个", "上", "也", "很", "到", "说", "要", "去", "你", "会", "着", "没有", "看", "好", "自己", "这");
+        
+        StringBuilder result = new StringBuilder();
+        for (char c : word.toCharArray()) {
+            String s = String.valueOf(c);
+            if (!stopWords.contains(s)) {
+                result.append(c);
+            }
+        }
+        
+        return result.toString();
     }
 
     /**

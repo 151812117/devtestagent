@@ -11,6 +11,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -38,15 +39,15 @@ public class MemoryClient {
     public Mono<MemoryContext> readMemory(String userId, String sessionId) {
         log.info("[MemoryClient] Reading memory for userId: {}, sessionId: {}", userId, sessionId);
 
-        Map<String, Object> request = Map.of(
-            "name", "readMemory",
-            "arguments", Map.of(
-                "userId", userId != null ? userId : "anonymous",
-                "sessionId", sessionId != null ? sessionId : "default",
-                "limit", 10,
-                "includeLongTerm", true
-            )
-        );
+        Map<String, Object> arguments = new HashMap<>();
+        arguments.put("userId", userId != null ? userId : "anonymous");
+        arguments.put("sessionId", sessionId != null ? sessionId : "default");
+        arguments.put("limit", 10);
+        arguments.put("includeLongTerm", true);
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("name", "readMemory");
+        request.put("arguments", arguments);
 
         return webClient.post()
             .uri(mcpServerUrl + "/mcp/tools/call")
@@ -82,18 +83,18 @@ public class MemoryClient {
                                   String target, String result, String details) {
         log.info("[MemoryClient] Writing memory async for userId: {}, action: {}", userId, action);
 
-        Map<String, Object> request = Map.of(
-            "name", "writeMemory",
-            "arguments", Map.of(
-                "userId", userId != null ? userId : "anonymous",
-                "sessionId", sessionId != null ? sessionId : "default",
-                "action", action,
-                "target", target,
-                "result", result,
-                "details", details,
-                "timestamp", LocalDateTime.now().toString()
-            )
-        );
+        Map<String, Object> arguments = new HashMap<>();
+        arguments.put("userId", userId != null ? userId : "anonymous");
+        arguments.put("sessionId", sessionId != null ? sessionId : "default");
+        arguments.put("action", action);
+        arguments.put("target", target);
+        arguments.put("result", result);
+        arguments.put("details", details);
+        arguments.put("timestamp", LocalDateTime.now().toString());
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("name", "writeMemory");
+        request.put("arguments", arguments);
 
         webClient.post()
             .uri(mcpServerUrl + "/mcp/tools/call")
@@ -101,7 +102,7 @@ public class MemoryClient {
             .bodyValue(request)
             .retrieve()
             .bodyToMono(JsonNode.class)
-            .doOnNext(response -> log.info("[MemoryClient] Memory write success: request={}, response={}",request, response))
+            .doOnNext(response -> log.info("[MemoryClient] Memory write success: request={}, response={}", request, response))
             .onErrorResume(error -> {
                 log.error("[MemoryClient] Failed to write memory: {}", error.getMessage());
                 return Mono.empty();

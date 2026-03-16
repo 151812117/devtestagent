@@ -4,6 +4,7 @@ import com.example.agent.agent.master.MasterAgent;
 import com.example.agent.model.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
@@ -24,7 +25,7 @@ public class ChatService {
     }
 
     /**
-     * 处理 chat 请求
+     * 处理 chat 请求（非流式）
      */
     public Mono<ChatResponse> process(ChatRequest request) {
         String phase = request.getPhase();
@@ -39,7 +40,22 @@ public class ChatService {
     }
 
     /**
-     * 处理意图解析阶段
+     * 处理流式 chat 请求
+     */
+    public Flux<ChatStreamEvent> processStream(ChatRequest request, String requestId) {
+        String phase = request.getPhase();
+        
+        if ("INTENT_PARSE".equals(phase)) {
+            return processIntentParseStream(request, requestId);
+        } else if ("EXECUTION".equals(phase)) {
+            return processExecutionStream(request, requestId);
+        } else {
+            return Flux.error(new IllegalArgumentException("Unknown phase: " + phase));
+        }
+    }
+
+    /**
+     * 处理意图解析阶段（非流式）
      */
     private Mono<ChatResponse> processIntentParse(ChatRequest request) {
         String requestId = request.getRequestId() != null ? 
@@ -75,7 +91,55 @@ public class ChatService {
     }
 
     /**
-     * 处理执行阶段
+     * 处理意图解析阶段（流式）
+     */
+    private Flux<ChatStreamEvent> processIntentParseStream(ChatRequest request, String requestId) {
+        // 构建 AgentRequest
+        AgentRequest agentRequest = AgentRequest.builder()
+            .requestId(requestId)
+            .userQuery(request.getContent())
+            .userId(request.getUserId())
+            .sessionId(request.getSessionId())
+            .phase(AgentRequest.RequestPhase.INTENT_PARSE)
+            .memory(request.getMemoryContent())
+            .build();
+
+        // 发送任务规划事件
+        ChatStreamEvent taskPlannedEvent = ChatStreamEvent.builder()
+            .eventType(ChatStreamEvent.EventType.TASK_PLANNED)
+            .requestId(requestId)
+            .data("Task planning completed")
+            .build();
+
+        // 调用 MasterAgent 进行意图解析
+        Mono<ChatStreamEvent> intentResultMono = masterAgent.processIntentParse(agentRequest)
+            .map(intentResult -> ChatStreamEvent.builder()
+                .eventType(ChatStreamEvent.EventType.INTENT_PARSE_RESULT)
+                .requestId(requestId)
+                .data(ChatResponse.builder()
+                    .responseId(generateRequestId())
+                    .requestId(requestId)
+                    .type("INTENT_PARSE_RESULT")
+                    .intentResult(convertToChatIntentResult(intentResult))
+                    .build())
+                .build())
+            .onErrorResume(error -> {
+                log.error("[ChatService] Intent parse stream error: {}", error.getMessage());
+                return Mono.just(ChatStreamEvent.builder()
+                    .eventType(ChatStreamEvent.EventType.ERROR)
+                    .requestId(requestId)
+                    .errorMessage(error.getMessage())
+                    .build());
+            });
+
+        return Flux.concat(
+            Flux.just(taskPlannedEvent),
+            intentResultMono
+        );
+    }
+
+    /**
+     * 处理执行阶段（非流式）
      */
     private Mono<ChatResponse> processExecution(ChatRequest request) {
         String requestId = request.getRequestId();
@@ -117,6 +181,65 @@ public class ChatService {
                     .errorMessage(error.getMessage())
                     .build());
             });
+    }
+
+    /**
+     * 处理执行阶段（流式）
+     */
+    private Flux<ChatStreamEvent> processExecutionStream(ChatRequest request, String requestId) {
+        Map<String, Object> context = request.getContext();
+        
+        if (context == null || !context.containsKey("action")) {
+            return Flux.error(new IllegalArgumentException("Execution context must contain action"));
+        }
+
+        String action = context.get("action").toString();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> parameters = (Map<String, Object>) context.getOrDefault("parameters", 
+            new java.util.HashMap<>());
+
+        // 构建 AgentRequest
+        AgentRequest agentRequest = AgentRequest.builder()
+            .requestId(requestId)
+            .userQuery(request.getOriginalQuery())
+            .userId(request.getUserId())
+            .sessionId(request.getSessionId())
+            .phase(AgentRequest.RequestPhase.EXECUTION)
+            .parameters(parameters)
+            .build();
+
+        // 发送开始执行事件
+        ChatStreamEvent startEvent = ChatStreamEvent.builder()
+            .eventType(ChatStreamEvent.EventType.START)
+            .requestId(requestId)
+            .data("Starting execution for action: " + action)
+            .build();
+
+        // 调用 MasterAgent 执行任务
+        Mono<ChatStreamEvent> executionResultMono = masterAgent.processExecution(action, agentRequest)
+            .map(executionResult -> ChatStreamEvent.builder()
+                .eventType(ChatStreamEvent.EventType.EXECUTION_RESULT)
+                .requestId(requestId)
+                .data(ChatResponse.builder()
+                    .responseId(generateRequestId())
+                    .requestId(requestId)
+                    .type("EXECUTION_RESULT")
+                    .executionResult(convertToChatExecutionResult(executionResult))
+                    .build())
+                .build())
+            .onErrorResume(error -> {
+                log.error("[ChatService] Execution stream error: {}", error.getMessage());
+                return Mono.just(ChatStreamEvent.builder()
+                    .eventType(ChatStreamEvent.EventType.ERROR)
+                    .requestId(requestId)
+                    .errorMessage(error.getMessage())
+                    .build());
+            });
+
+        return Flux.concat(
+            Flux.just(startEvent),
+            executionResultMono
+        );
     }
 
     /**

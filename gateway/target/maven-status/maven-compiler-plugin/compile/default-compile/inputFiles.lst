@@ -5,4 +5,5 @@ C:\CR\ABC\AI\multiagent\dev-test-agent\gateway\src\main\java\com\example\gateway
 C:\CR\ABC\AI\multiagent\dev-test-agent\gateway\src\main\java\com\example\gateway\config\WebFluxConfig.java
 C:\CR\ABC\AI\multiagent\dev-test-agent\gateway\src\main\java\com\example\gateway\GatewayApplication.java
 C:\CR\ABC\AI\multiagent\dev-test-agent\gateway\src\main\java\com\example\gateway\model\AgentResponse.java
+C:\CR\ABC\AI\multiagent\dev-test-agent\gateway\src\main\java\com\example\gateway\model\ChatStreamEvent.java
 C:\CR\ABC\AI\multiagent\dev-test-agent\gateway\src\main\java\com\example\gateway\model\MemoryContext.java

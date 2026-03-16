@@ -309,6 +309,8 @@
             margin-bottom: 12px;
             padding-bottom: 12px;
             border-bottom: 1px solid #f0f0f0;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .user-id-input {
@@ -488,6 +490,81 @@
             justify-content: flex-end;
             margin-top: 12px;
         }
+
+        /* 流式模式开关 */
+        .stream-toggle {
+            display: flex;
+            align-items: center;
+        }
+
+        .stream-toggle .switch {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .stream-toggle input[type="checkbox"] {
+            width: 36px;
+            height: 18px;
+            appearance: none;
+            background: #ccc;
+            border-radius: 9px;
+            position: relative;
+            cursor: pointer;
+            outline: none;
+            transition: background 0.3s;
+        }
+
+        .stream-toggle input[type="checkbox"]:checked {
+            background: #07c160;
+        }
+
+        .stream-toggle input[type="checkbox"]::after {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s;
+        }
+
+        .stream-toggle input[type="checkbox"]:checked::after {
+            transform: translateX(18px);
+        }
+
+        .stream-toggle .slider {
+            user-select: none;
+        }
+
+        /* 流式输出状态指示器 */
+        .streaming-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #07c160;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .streaming-indicator::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #07c160;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
     </style>
 </head>
 <body>
@@ -535,6 +612,12 @@
                             <button class="tab-btn active" onclick="switchTab('env', this)">环境管理</button>
                             <button class="tab-btn" onclick="switchTab('test', this)">测试执行</button>
                             <button class="tab-btn" onclick="switchTab('menu', this)">菜单推荐</button>
+                        </div>
+                        <div class="stream-toggle">
+                            <label class="switch">
+                                <input type="checkbox" id="streamMode" checked>
+                                <span class="slider">流式输出</span>
+                            </label>
                         </div>
                     </div>
 
@@ -775,6 +858,7 @@
             const queryInput = document.getElementById('userQuery');
             const query = queryInput.value.trim();
             const userId = document.getElementById('userId').value.trim();
+            const streamMode = document.getElementById('streamMode').checked;
 
             if (!query) return;
 
@@ -795,22 +879,13 @@
             addAIMessageContainer();
 
             try {
-                // 第一步：解析意图
-                const response = await fetch('/api/agent/intent', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, userId })
-                });
-
-                const result = await response.json();
-                console.log('Intent result:', result);
-
-                currentRequestId = result.requestId;
-                currentIntent = result.intentResult;
-
-                // 渲染意图解析结果
-                renderIntentResult(result);
-
+                if (streamMode) {
+                    // 流式模式
+                    await sendMessageStream(query, userId);
+                } else {
+                    // 非流式模式
+                    await sendMessageNormal(query, userId);
+                }
             } catch (error) {
                 hideLoading();
                 const aiBody = getCurrentAIMessageBody();
@@ -822,13 +897,150 @@
             }
         }
 
+        // 非流式发送消息
+        async function sendMessageNormal(query, userId) {
+            const response = await fetch('/api/agent/intent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query, userId })
+            });
+
+            const result = await response.json();
+            console.log('Intent result:', result);
+
+            currentRequestId = result.requestId;
+            currentIntent = result.intentResult;
+
+            // 渲染意图解析结果
+            renderIntentResult(result);
+        }
+
+        // 流式发送消息
+        async function sendMessageStream(query, userId) {
+            return new Promise((resolve, reject) => {
+                // 使用 fetch + ReadableStream 方式处理 SSE 流
+                // EventSource 不支持 POST 请求，所以使用 fetch 手动解析 SSE 格式
+                fetch('/api/agent/intent/stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, userId })
+                }).then(response => {
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    let intentResultReceived = false;
+
+                    // 显示流式状态指示
+                    showStreamingIndicator();
+
+                    function readStream() {
+                        return reader.read().then(({ done, value }) => {
+                            if (done) {
+                                hideStreamingIndicator();
+                                resolve();
+                                return;
+                            }
+
+                            buffer += decoder.decode(value, { stream: true });
+                            const lines = buffer.split('\n');
+                            buffer = lines.pop(); // 保留未完成的行
+
+                            for (const line of lines) {
+                                if (line.trim()) {
+                                    processSSELine(line, intentResultReceived);
+                                }
+                            }
+
+                            return readStream();
+                        });
+                    }
+
+                    return readStream();
+                }).catch(error => {
+                    hideStreamingIndicator();
+                    reject(error);
+                });
+            });
+        }
+
+        // 处理 SSE 行
+        function processSSELine(line, intentResultReceived) {
+            if (line.startsWith('data:')) {
+                try {
+                    const jsonStr = line.substring(5).trim();
+                    const event = JSON.parse(jsonStr);
+                    console.log('SSE Event:', event);
+
+                    if (event.eventType === 'INTENT_PARSE_RESULT') {
+                        // 从事件中获取 requestId
+                        currentRequestId = event.requestId || (event.data && event.data.requestId);
+                        
+                        // 支持多种数据格式提取 intentResult
+                        if (event.data) {
+                            if (event.data.intentResult) {
+                                currentIntent = event.data.intentResult;
+                            } else if (event.data.action) {
+                                // data 本身就是 intentResult
+                                currentIntent = event.data;
+                            }
+                        }
+                        
+                        // 构造符合 renderIntentResult 期望的格式
+                        const result = event.data || event;
+                        // 如果 result 没有 intentResult 字段，但有 action 字段，说明 result 本身就是 intentResult
+                        if (!result.intentResult && result.action) {
+                            result.intentResult = {
+                                action: result.action,
+                                target: result.target,
+                                parameters: result.parameters,
+                                think: result.think,
+                                missingParameters: result.missingParameters,
+                                confirmationMessage: result.confirmationMessage
+                            };
+                        }
+                        
+                        renderIntentResult(result);
+                    } else if (event.eventType === 'ERROR') {
+                        hideLoading();
+                        const aiBody = getCurrentAIMessageBody();
+                        if (aiBody) {
+                            aiBody.innerHTML = `<div style="color: #dc3545;">错误：${escapeHtml(event.errorMessage || 'Unknown error')}</div>`;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to parse SSE data:', line, e);
+                }
+            }
+        }
+
+        // 显示流式状态指示
+        function showStreamingIndicator() {
+            const aiBody = getCurrentAIMessageBody();
+            if (aiBody) {
+                const indicator = document.createElement('div');
+                indicator.className = 'streaming-indicator';
+                indicator.id = 'streamingIndicator';
+                indicator.textContent = '正在思考中...';
+                aiBody.insertBefore(indicator, aiBody.firstChild);
+            }
+        }
+
+        // 隐藏流式状态指示
+        function hideStreamingIndicator() {
+            const indicator = document.getElementById('streamingIndicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+
         // 渲染意图解析结果
         function renderIntentResult(result) {
             hideLoading();
             const aiBody = getCurrentAIMessageBody();
             if (!aiBody) return;
 
-            const intent = result.intentResult;
+            // 支持多种数据格式：优先使用 intentResult，否则使用 result 本身
+            const intent = result.intentResult || result;
             
             // 构建HTML
             let html = '';
@@ -1029,6 +1241,8 @@
                 return;
             }
 
+            const streamMode = document.getElementById('streamMode').checked;
+
             // 收集参数
             const confirmedParams = {};
             const inputs = document.querySelectorAll(`[id^="param_${currentRequestId}_"]`);
@@ -1047,23 +1261,13 @@
             sendBtn.disabled = true;
 
             try {
-                const response = await fetch('/api/agent/execute', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        requestId: currentRequestId,
-                        query: currentQuery,
-                        userId: document.getElementById('userId').value.trim(),
-                        parameters: confirmedParams
-                    })
-                });
-
-                const result = await response.json();
-                console.log('Execution result:', result);
-
-                // 渲染执行结果
-                renderExecutionResult(result);
-
+                if (streamMode) {
+                    // 流式模式
+                    await executeTaskStream(confirmedParams);
+                } else {
+                    // 非流式模式
+                    await executeTaskNormal(confirmedParams);
+                }
             } catch (error) {
                 hideLoading();
                 const aiBody = getCurrentAIMessageBody();
@@ -1072,6 +1276,99 @@
                 }
             } finally {
                 sendBtn.disabled = false;
+            }
+        }
+
+        // 非流式执行任务
+        async function executeTaskNormal(confirmedParams) {
+            const response = await fetch('/api/agent/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    requestId: currentRequestId,
+                    query: currentQuery,
+                    userId: document.getElementById('userId').value.trim(),
+                    parameters: confirmedParams
+                })
+            });
+
+            const result = await response.json();
+            console.log('Execution result:', result);
+
+            // 渲染执行结果
+            renderExecutionResult(result);
+        }
+
+        // 流式执行任务
+        async function executeTaskStream(confirmedParams) {
+            return new Promise((resolve, reject) => {
+                fetch('/api/agent/execute/stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        requestId: currentRequestId,
+                        query: currentQuery,
+                        userId: document.getElementById('userId').value.trim(),
+                        parameters: confirmedParams
+                    })
+                }).then(response => {
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    // 显示流式状态指示
+                    showStreamingIndicator();
+
+                    function readStream() {
+                        return reader.read().then(({ done, value }) => {
+                            if (done) {
+                                hideStreamingIndicator();
+                                resolve();
+                                return;
+                            }
+
+                            buffer += decoder.decode(value, { stream: true });
+                            const lines = buffer.split('\n');
+                            buffer = lines.pop(); // 保留未完成的行
+
+                            for (const line of lines) {
+                                if (line.trim()) {
+                                    processExecutionSSELine(line);
+                                }
+                            }
+
+                            return readStream();
+                        });
+                    }
+
+                    return readStream();
+                }).catch(error => {
+                    hideStreamingIndicator();
+                    reject(error);
+                });
+            });
+        }
+
+        // 处理执行阶段的 SSE 行
+        function processExecutionSSELine(line) {
+            if (line.startsWith('data:')) {
+                try {
+                    const jsonStr = line.substring(5).trim();
+                    const event = JSON.parse(jsonStr);
+                    console.log('Execution SSE Event:', event);
+
+                    if (event.eventType === 'EXECUTION_RESULT') {
+                        renderExecutionResult(event.data || event);
+                    } else if (event.eventType === 'ERROR') {
+                        hideLoading();
+                        const aiBody = getCurrentAIMessageBody();
+                        if (aiBody) {
+                            aiBody.innerHTML = `<div style="color: #dc3545;">执行错误：${escapeHtml(event.errorMessage || 'Unknown error')}</div>`;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to parse execution SSE data:', line, e);
+                }
             }
         }
 
